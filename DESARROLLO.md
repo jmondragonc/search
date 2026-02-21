@@ -251,12 +251,118 @@ Búsqueda (MeilisearchClient::try_first_char_strip):
 
 ---
 
+## Fase 6 – Despliegue a producción (search.bttr.pe)
+
+### Infraestructura
+
+- **Servidor**: Ubuntu 24.04 LTS, VPS en 38.250.161.142
+- **DNS**: search.bttr.pe → 38.250.161.142 (configurado en panel DNS antes del deploy)
+- **SSL**: Let's Encrypt via certbot (expira 2026-05-22, auto-renovación habilitada)
+- **Stack**: idéntico al desarrollo local, corriendo en Docker
+
+### Problema: mysql:8.0 no compatible con la CPU del VPS
+
+```
+Fatal glibc error: CPU does not support x86-64-v2
+```
+
+MySQL 8.0 (tag `:latest`) desde cierta versión requiere instrucciones x86-64-v2 que el VPS no soporta. Fix: pinear a `mysql:8.0.32` que no tiene ese requisito.
+
+### Arquitectura nginx (reverse proxy)
+
+nginx en el host actúa como proxy hacia el contenedor WordPress:
+
+```
+Internet → nginx:80/443 → Docker:8080 (wc-wordpress)
+```
+
+```nginx
+location / {
+    proxy_pass         http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+    proxy_read_timeout 60s;
+}
+```
+
+### WooCommerce "Coming Soon" activado por defecto
+
+Las instalaciones nuevas de WooCommerce activan el modo "Coming Soon" automáticamente. Fix:
+
+```bash
+wp option update woocommerce_coming_soon 'no'
+wp option update woocommerce_store_pages_only 'no'
+```
+
+### Firewall
+
+```bash
+ufw allow 22/tcp   # SSH
+ufw allow 80/tcp   # HTTP
+ufw allow 443/tcp  # HTTPS
+ufw deny 7700      # Meilisearch (solo acceso interno)
+ufw deny 8081      # Adminer (solo acceso interno)
+```
+
+---
+
+## Fase 7 – Extracción de precios del scraper
+
+### Problema: todos los precios aparecían como $0
+
+panuts.com usa elementos `<bdi>` para los precios, no `.amount` como asumía el selector original.
+
+**HTML real:**
+```html
+<bdi><span class="woocommerce-Price-currencySymbol">S/.</span>&nbsp;13.90</bdi>
+```
+
+**Fix 1 – Selector correcto:**
+```python
+def extract_price(sel: str) -> float:
+    el = soup.select_one(sel)
+    if not el:
+        return 0.0
+    bdi = el.select_one("bdi")
+    text = bdi.get_text(strip=True) if bdi else el.get_text(strip=True)
+    return parse_price(text)
+```
+
+**Fix 2 – Formato numérico inglés vs español:**
+
+`parse_price` asumía formato español (`1.556,00`), pero panuts usa formato inglés (`1,556.00`). Fix: detectar cuál separador está más a la derecha.
+
+```python
+if "," in cleaned and "." in cleaned:
+    if cleaned.rfind(".") > cleaned.rfind(","):
+        cleaned = cleaned.replace(",", "")          # inglés: 1,556.00
+    else:
+        cleaned = cleaned.replace(".", "").replace(",", ".")  # español: 1.556,00
+```
+
+**Fix 3 – Punto residual del símbolo "S/.":**
+
+El símbolo `S/.` tiene un punto que pasa el regex `[^\d,\.]`, generando `".13.90"` que falla en `float()`.
+
+```python
+cleaned = re.sub(r"[^\d,\.]", "", text)
+cleaned = cleaned.strip(".")   # elimina punto inicial de "S/."
+```
+
+### Resultado final
+
+977 productos importados con precios correctos. 0 productos con precio 0.
+
+---
+
 ## Notas de operación
 
-- **OPcache**: PHP OPcache está habilitado en el contenedor. Tras modificar archivos PHP, resetear con:
-  ```bash
-  docker compose exec wordpress php -r "opcache_reset();"
-  ```
+- **OPcache**: el contenedor WordPress usa `opcache.validate_timestamps=1`, detecta cambios de archivo automáticamente. `opcache_reset()` desde CLI no afecta el OPcache de Apache (procesos separados).
 - **Redis cache TTL**: 300 segundos. Las búsquedas sin resultados no se cachean para no bloquear el fallback en futuras peticiones.
 - **Invalidación de cache**: automática en cada `upsert_documents`, `delete_document` y `clear_index`.
 - **Rate limiting**: 1 request cada 100ms por IP en `ajax-search.php`, implementado con WordPress transients.
+- **Reindexado automático**: el plugin tiene hooks en `woocommerce_new_product`, `woocommerce_update_product`, `woocommerce_delete_product`. Cada edición de producto en WooCommerce actualiza Meilisearch automáticamente.
+- **Reindexado masual**: desde el panel admin de WordPress → Meilisearch → "Reindexar todo". Solo necesario la primera vez o si el índice se corrompe.

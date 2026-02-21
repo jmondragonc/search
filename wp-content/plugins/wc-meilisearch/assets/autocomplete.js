@@ -65,7 +65,7 @@
 
   function formatPrice(price) {
     if (!price && price !== 0) return '';
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(price);
+    return 'S/. ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
   }
 
   function esc(str) {
