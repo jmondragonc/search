@@ -141,15 +141,26 @@ def parse_product_page(soup: BeautifulSoup, url: str) -> Optional[Product]:
         sku_el = soup.select_one(".sku")
         sku = sku_el.get_text(strip=True) if sku_el else ""
 
-        # Prices
-        price_el = soup.select_one(".price ins .amount") or soup.select_one(".price .amount")
-        regular_price_el = soup.select_one(".price del .amount")
-        sale_price_el = soup.select_one(".price ins .amount")
+        # Prices — panuts uses <bdi> inside .price (not .amount)
+        def extract_price(sel: str) -> float:
+            el = soup.select_one(sel)
+            if not el:
+                return 0.0
+            bdi = el.select_one("bdi")
+            text = bdi.get_text(strip=True) if bdi else el.get_text(strip=True)
+            return parse_price(text)
 
-        price_text   = price_el.get_text(strip=True) if price_el else "0"
-        current_price = parse_price(price_text)
-        regular_price = parse_price(regular_price_el.get_text(strip=True)) if regular_price_el else current_price
-        sale_price    = parse_price(sale_price_el.get_text(strip=True)) if sale_price_el and regular_price_el else None
+        sale_price_raw    = extract_price(".price ins bdi") or extract_price(".price ins .amount")
+        regular_price_raw = extract_price(".price del bdi") or extract_price(".price del .amount")
+        current_price_raw = (
+            extract_price(".price > .woocommerce-Price-amount bdi")
+            or extract_price(".price bdi")
+            or extract_price(".price .amount")
+        )
+
+        current_price = sale_price_raw or current_price_raw
+        regular_price = regular_price_raw if regular_price_raw else current_price
+        sale_price    = sale_price_raw if regular_price_raw else None
 
         # Descriptions
         short_desc_el = soup.select_one(".woocommerce-product-details__short-description")
