@@ -66,13 +66,24 @@ class Product:
 # ---------------------------------------------------------------------------
 
 def parse_price(text: str) -> float:
-    """Strip currency symbols, dots used as thousands sep, parse float."""
+    """Strip currency symbols and parse float.
+
+    Handles two formats:
+    - English:  1,556.00  (comma=thousands, dot=decimal) → 1556.00
+    - Spanish:  1.556,00  (dot=thousands,  comma=decimal) → 1556.00
+    """
     if not text:
         return 0.0
     cleaned = re.sub(r"[^\d,\.]", "", text)
-    # Colombian/Spanish format: 1.500,00 → 1500.00
     if "," in cleaned and "." in cleaned:
-        cleaned = cleaned.replace(".", "").replace(",", ".")
+        comma_pos = cleaned.rfind(",")
+        dot_pos   = cleaned.rfind(".")
+        if dot_pos > comma_pos:
+            # English format: 1,556.00 → remove commas
+            cleaned = cleaned.replace(",", "")
+        else:
+            # Spanish format: 1.556,00 → remove dots, comma→dot
+            cleaned = cleaned.replace(".", "").replace(",", ".")
     elif "," in cleaned:
         cleaned = cleaned.replace(",", ".")
     try:
