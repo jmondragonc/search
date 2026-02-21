@@ -1,0 +1,190 @@
+version: "3.9"
+
+# ============================================================
+# Full-stack: WordPress + WooCommerce + MySQL + Meilisearch
+#             + Redis + Adminer + Scraper (optional profile)
+# ============================================================
+
+networks:
+  search_net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  meili_data:
+  redis_data:
+
+services:
+
+  # ----------------------------------------------------------
+  # MySQL 8.0
+  # ----------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: wc-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - search_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # Meilisearch v1.6
+  # ----------------------------------------------------------
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    container_name: wc-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_NO_ANALYTICS: ${MEILI_NO_ANALYTICS}
+    volumes:
+      - meili_data:/meili_data
+    ports:
+      - "7700:7700"
+    networks:
+      - search_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # Redis 7 Alpine
+  # ----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: wc-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - search_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # WordPress + WooCommerce
+  # ----------------------------------------------------------
+  wordpress:
+    image: wordpress:latest
+    container_name: wc-wordpress
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_TABLE_PREFIX: ${WORDPRESS_TABLE_PREFIX}
+      # Plugin env vars (read from PHP via getenv)
+      MEILI_HOST: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      WP_SITE_URL: ${WP_SITE_URL}
+    volumes:
+      - ./wp-content:/var/www/html/wp-content
+      - ./scripts/wp-setup.sh:/usr/local/bin/wp-setup.sh:ro
+      - ./scraper/output:/var/www/html/wp-content/uploads/panuts_import:rw
+    networks:
+      - search_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ----------------------------------------------------------
+  # WP-CLI helper (run on-demand, not a daemon)
+  # ----------------------------------------------------------
+  wpcli:
+    image: wordpress:cli
+    container_name: wc-wpcli
+    depends_on:
+      wordpress:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE}
+      WORDPRESS_DB_USER: ${MYSQL_USER}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+      WORDPRESS_TABLE_PREFIX: ${WORDPRESS_TABLE_PREFIX}
+      MEILI_HOST: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      WP_SITE_URL: ${WP_SITE_URL}
+      WP_ADMIN_USER: ${WP_ADMIN_USER}
+      WP_ADMIN_PASSWORD: ${WP_ADMIN_PASSWORD}
+      WP_ADMIN_EMAIL: ${WP_ADMIN_EMAIL}
+      WP_SITE_TITLE: ${WP_SITE_TITLE}
+    volumes:
+      - ./wp-content:/var/www/html/wp-content
+      - ./scripts:/scripts:ro
+      - ./scraper/output:/var/www/html/wp-content/uploads/panuts_import:rw
+    working_dir: /var/www/html
+    user: "33:33"          # www-data
+    networks:
+      - search_net
+    entrypoint: ["tail", "-f", "/dev/null"]   # keep alive for exec
+
+  # ----------------------------------------------------------
+  # Adminer – database GUI
+  # ----------------------------------------------------------
+  adminer:
+    image: adminer:latest
+    container_name: wc-adminer
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    ports:
+      - "8081:8080"
+    networks:
+      - search_net
+
+  # ----------------------------------------------------------
+  # Scraper – optional profile, run once with:
+  #   docker compose --profile scraper run --rm scraper
+  # ----------------------------------------------------------
+  scraper:
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
+    container_name: wc-scraper
+    profiles:
+      - scraper
+    environment:
+      SCRAPER_OUTPUT_DIR: ${SCRAPER_OUTPUT_DIR}
+      SCRAPER_DELAY: ${SCRAPER_DELAY}
+      SCRAPER_MAX_PAGES: ${SCRAPER_MAX_PAGES}
+    volumes:
+      - ./scraper/output:/output
+    networks:
+      - search_net

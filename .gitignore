@@ -1,0 +1,36 @@
+# Credentials
+.env
+
+# WordPress core y plugins de terceros (se instalan vía Docker/WP-CLI, no se trackean)
+wp-content/plugins/akismet/
+wp-content/plugins/hello.php
+wp-content/plugins/woocommerce/
+wp-content/themes/twentytwentyfive/
+wp-content/themes/twentytwentyfour/
+wp-content/themes/twentytwentythree/
+wp-content/themes/twentytwentytwo/
+
+# Claude session files
+.claude/
+
+# WordPress uploads (contenido generado)
+wp-content/uploads/
+
+# Composer vendor (se instala con composer install)
+wp-content/plugins/wc-meilisearch/vendor/
+
+# Scraper output (archivos grandes)
+scraper/output/products.json
+scraper/output/images/
+
+# Docker volumes
+mysql_data/
+meili_data/
+redis_data/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
