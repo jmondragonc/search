@@ -20,7 +20,7 @@ services:
   # MySQL 8.0
   # ----------------------------------------------------------
   mysql:
-    image: mysql:8.0
+    image: mysql:8.0.32
     container_name: wc-mysql
     restart: unless-stopped
     environment:
