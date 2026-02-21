@@ -75,6 +75,7 @@ def parse_price(text: str) -> float:
     if not text:
         return 0.0
     cleaned = re.sub(r"[^\d,\.]", "", text)
+    cleaned = cleaned.strip(".")   # remove leading dots from "S/." currency prefix
     if "," in cleaned and "." in cleaned:
         comma_pos = cleaned.rfind(",")
         dot_pos   = cleaned.rfind(".")
