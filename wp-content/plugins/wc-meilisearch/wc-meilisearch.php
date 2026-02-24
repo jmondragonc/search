@@ -71,14 +71,16 @@ function wcm_render_header_searchbar(): void {
     <div id="wcm-header-bar">
         <div id="wcm-header-inner">
             <span id="wcm-logo">🔍</span>
-            <input
-                type="search"
-                id="wcm-header-input"
-                name="s"
-                placeholder="Buscar vinos, rones, cervezas…"
-                autocomplete="off"
-                aria-label="Buscar productos"
-            >
+            <form action="/" method="get" role="search" id="wcm-header-form">
+                <input
+                    type="search"
+                    id="wcm-header-input"
+                    name="s"
+                    placeholder="Buscar vinos, rones, cervezas…"
+                    autocomplete="off"
+                    aria-label="Buscar productos"
+                >
+            </form>
         </div>
     </div>
     <style>

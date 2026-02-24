@@ -179,16 +179,8 @@
     input.addEventListener('input', (e) => fetchResults(e.target.value.trim()));
 
     input.addEventListener('keydown', (e) => {
-      const items = dropdown.querySelectorAll('li[data-idx]');
-      if (!items.length) return;
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setActive(Math.min(activeIndex + 1, items.length - 1));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setActive(Math.max(activeIndex - 1, 0));
-      } else if (e.key === 'Enter') {
+      // Handle Enter regardless of whether the dropdown is open.
+      if (e.key === 'Enter') {
         e.preventDefault();
         if (activeIndex >= 0) {
           const product = currentResults[activeIndex];
@@ -200,8 +192,31 @@
             window.location.href = '/?s=' + encodeURIComponent(q);
           }
         }
+        return;
+      }
+
+      // Arrow / Escape navigation only makes sense when dropdown is open.
+      const items = dropdown.querySelectorAll('li[data-idx]');
+      if (!items.length) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActive(Math.min(activeIndex + 1, items.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActive(Math.max(activeIndex - 1, 0));
       } else if (e.key === 'Escape') {
         close();
+      }
+    });
+
+    // Mobile keyboards fire a 'search' event on <input type="search"> when
+    // the user taps the Search / Go / Ir button. Handle it the same way.
+    input.addEventListener('search', () => {
+      const q = input.value.trim();
+      if (q.length >= CONFIG.minChars) {
+        close();
+        window.location.href = '/?s=' + encodeURIComponent(q);
       }
     });
 
