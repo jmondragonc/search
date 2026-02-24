@@ -10,6 +10,12 @@ defined( 'ABSPATH' ) || exit;
 
 get_header();
 
+// Some themes don't call wp_body_open(), so the sticky search bar never fires.
+// If it hasn't been output yet, render it explicitly here.
+if ( ! did_action( 'wp_body_open' ) ) {
+    wcm_render_header_searchbar();
+}
+
 $query = get_search_query();
 ?>
 
