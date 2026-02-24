@@ -56,9 +56,10 @@ add_action( 'plugins_loaded', function () {
     \WCMeilisearch\ProductIndexer::instance();
     \WCMeilisearch\AdminPage::instance();
 
-    // Frontend autocomplete script.
+    // Frontend autocomplete script + search results page.
     add_action( 'wp_enqueue_scripts', 'wcm_enqueue_frontend' );
     add_action( 'wp_body_open',       'wcm_render_header_searchbar' );
+    add_filter( 'template_include',   'wcm_search_template' );
 } );
 
 /**
@@ -129,6 +130,7 @@ function wcm_render_header_searchbar(): void {
 
 /**
  * Enqueue the vanilla-JS autocomplete widget on every frontend page.
+ * On search results pages, also enqueue the results grid script.
  */
 function wcm_enqueue_frontend(): void {
     wp_enqueue_script(
@@ -145,6 +147,29 @@ function wcm_enqueue_frontend(): void {
         'minChars' => 2,
         'debounce' => 150,
     ] );
+
+    if ( is_search() ) {
+        wp_enqueue_script(
+            'wcm-search-results',
+            WCM_PLUGIN_URL . 'assets/search-results.js',
+            [ 'wcm-autocomplete' ],
+            WCM_VERSION,
+            true
+        );
+    }
+}
+
+/**
+ * Serve our custom search template instead of the theme's search.php.
+ */
+function wcm_search_template( string $template ): string {
+    if ( is_search() ) {
+        $custom = WCM_PLUGIN_DIR . 'templates/search-results.php';
+        if ( file_exists( $custom ) ) {
+            return $custom;
+        }
+    }
+    return $template;
 }
 
 // ---------------------------------------------------------------------------

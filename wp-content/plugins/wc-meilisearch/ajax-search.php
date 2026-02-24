@@ -65,7 +65,7 @@ set_transient( $ip_key, microtime( true ), 1 );
 // ---------------------------------------------------------------------------
 // Search
 // ---------------------------------------------------------------------------
-$limit = isset( $_GET['limit'] ) ? min( (int) $_GET['limit'], 20 ) : 8;
+$limit = isset( $_GET['limit'] ) ? min( (int) $_GET['limit'], 100 ) : 8;
 
 $result = \WCMeilisearch\MeilisearchClient::instance()->search( $query, [ 'limit' => $limit ] );
 

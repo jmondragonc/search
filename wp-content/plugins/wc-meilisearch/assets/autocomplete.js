@@ -188,10 +188,18 @@
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setActive(Math.max(activeIndex - 1, 0));
-      } else if (e.key === 'Enter' && activeIndex >= 0) {
+      } else if (e.key === 'Enter') {
         e.preventDefault();
-        const product = currentResults[activeIndex];
-        if (product) window.location.href = product.url;
+        if (activeIndex >= 0) {
+          const product = currentResults[activeIndex];
+          if (product) window.location.href = product.url;
+        } else {
+          const q = input.value.trim();
+          if (q.length >= CONFIG.minChars) {
+            close();
+            window.location.href = '/?s=' + encodeURIComponent(q);
+          }
+        }
       } else if (e.key === 'Escape') {
         close();
       }
