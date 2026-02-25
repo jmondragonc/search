@@ -68,7 +68,12 @@ def normalise(text: str) -> str:
 
 
 def fetch_attributes(session: requests.Session, url: str) -> dict:
-    """Fetch a product page and extract attributes."""
+    """Fetch a product page and extract attributes.
+
+    Strategy 1 (primary): tr.woocommerce-product-attributes-item rows –
+      the class name encodes the slug (e.g. attribute_pa_tipo → tipo).
+    Strategy 2 (fallback): JSON-LD additionalProperty.
+    """
     try:
         resp = session.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
@@ -76,23 +81,22 @@ def fetch_attributes(session: requests.Session, url: str) -> dict:
 
         attrs: dict = {}
 
-        # ── Strategy 1: <dl class="woocommerce-product-attributes"> ────────
-        dl = soup.select_one("dl.woocommerce-product-attributes, table.woocommerce-product-attributes")
-        if dl:
-            # dl structure: <dt>Label</dt><dd>Value</dd>
-            dts = dl.select("dt")
-            dds = dl.select("dd")
-            for dt, dd in zip(dts, dds):
-                label = normalise(dt.get_text(strip=True))
-                slug  = LABEL_MAP.get(label)
-                if slug:
-                    value = dd.get_text(" ", strip=True)
-                    # Strip filter links markup, keep only text
-                    value = re.sub(r"\s+", " ", value).strip()
-                    if value:
-                        attrs[slug] = value
+        # ── Strategy 1: <tr class="...attribute_pa_SLUG"> ───────────────────
+        for tr in soup.select("tr.woocommerce-product-attributes-item"):
+            classes = " ".join(tr.get("class", []))
+            m = re.search(r"attribute_pa_(\w+)", classes)
+            if not m:
+                continue
+            slug = m.group(1)
+            if slug not in WANTED_ATTRS:
+                continue
+            td = tr.select_one("td")
+            if td:
+                value = re.sub(r"\s+", " ", td.get_text(" ", strip=True)).strip()
+                if value:
+                    attrs[slug] = value
 
-        # ── Strategy 2: JSON-LD additionalProperty (fallback) ───────────────
+        # ── Strategy 2: JSON-LD additionalProperty ──────────────────────────
         if not attrs:
             for script in soup.select('script[type="application/ld+json"]'):
                 try:

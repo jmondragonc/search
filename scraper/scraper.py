@@ -85,23 +85,32 @@ def _norm(text: str) -> str:
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
+WANTED_ATTRS_SET = set(ATTR_LABEL_MAP.values())
+
+
 def extract_attributes(soup: BeautifulSoup) -> dict:
     """Extract WooCommerce product attributes.
 
-    Strategy 1: <dl class="woocommerce-product-attributes"> (works on most products).
-    Strategy 2: JSON-LD additionalProperty (fallback for some products).
+    Strategy 1 (primary): tr.woocommerce-product-attributes-item rows –
+      the CSS class encodes the slug (e.g. attribute_pa_tipo → tipo).
+    Strategy 2 (fallback): JSON-LD additionalProperty.
     """
     attrs: dict = {}
 
-    # Strategy 1 – HTML attribute list
-    dl = soup.select_one("dl.woocommerce-product-attributes, table.woocommerce-product-attributes")
-    if dl:
-        for dt, dd in zip(dl.select("dt"), dl.select("dd")):
-            slug = ATTR_LABEL_MAP.get(_norm(dt.get_text(strip=True)))
-            if slug:
-                value = re.sub(r"\s+", " ", dd.get_text(" ", strip=True)).strip()
-                if value:
-                    attrs[slug] = value
+    # Strategy 1 – <tr class="...attribute_pa_SLUG">
+    for tr in soup.select("tr.woocommerce-product-attributes-item"):
+        classes = " ".join(tr.get("class", []))
+        m = re.search(r"attribute_pa_(\w+)", classes)
+        if not m:
+            continue
+        slug = m.group(1)
+        if slug not in WANTED_ATTRS_SET:
+            continue
+        td = tr.select_one("td")
+        if td:
+            value = re.sub(r"\s+", " ", td.get_text(" ", strip=True)).strip()
+            if value:
+                attrs[slug] = value
 
     if attrs:
         return attrs
