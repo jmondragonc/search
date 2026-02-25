@@ -66,11 +66,47 @@ class Product:
 # Helpers
 # ---------------------------------------------------------------------------
 
-WANTED_ATTRS = {"marca", "pais", "region", "tipo", "varietal", "volumen"}
+import unicodedata
+
+ATTR_LABEL_MAP = {
+    "marca":    "marca",
+    "pais":     "pais",
+    "país":     "pais",
+    "region":   "region",
+    "región":   "region",
+    "tipo":     "tipo",
+    "varietal": "varietal",
+    "volumen":  "volumen",
+}
+
+
+def _norm(text: str) -> str:
+    nfkd = unicodedata.normalize("NFKD", text.lower().strip())
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
 def extract_attributes(soup: BeautifulSoup) -> dict:
-    """Extract WooCommerce product attributes from the page's JSON-LD block."""
+    """Extract WooCommerce product attributes.
+
+    Strategy 1: <dl class="woocommerce-product-attributes"> (works on most products).
+    Strategy 2: JSON-LD additionalProperty (fallback for some products).
+    """
+    attrs: dict = {}
+
+    # Strategy 1 – HTML attribute list
+    dl = soup.select_one("dl.woocommerce-product-attributes, table.woocommerce-product-attributes")
+    if dl:
+        for dt, dd in zip(dl.select("dt"), dl.select("dd")):
+            slug = ATTR_LABEL_MAP.get(_norm(dt.get_text(strip=True)))
+            if slug:
+                value = re.sub(r"\s+", " ", dd.get_text(" ", strip=True)).strip()
+                if value:
+                    attrs[slug] = value
+
+    if attrs:
+        return attrs
+
+    # Strategy 2 – JSON-LD additionalProperty
     for script in soup.select('script[type="application/ld+json"]'):
         try:
             data = json.loads(script.string or "")
@@ -81,19 +117,19 @@ def extract_attributes(soup: BeautifulSoup) -> dict:
                 )
             if not isinstance(data, dict) or data.get("@type") != "Product":
                 continue
-            attrs: dict = {}
             for prop in data.get("additionalProperty", []):
                 name  = prop.get("name", "")
                 value = prop.get("value", "")
                 if not (name and value):
                     continue
-                key = name.replace("pa_", "").strip().lower()
-                if key in WANTED_ATTRS:
-                    attrs[key] = str(value).strip()
+                slug = ATTR_LABEL_MAP.get(_norm(name.replace("pa_", "")))
+                if slug:
+                    attrs[slug] = str(value).strip()
             if attrs:
                 return attrs
         except Exception:
             pass
+
     return {}
 
 

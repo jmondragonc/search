@@ -3,13 +3,14 @@
 Attribute enrichment script
 ============================
 Reads the existing products.json and fetches WooCommerce attributes
-from each product's JSON-LD structured data on panuts.com.
+from each product page on panuts.com.
 
 Adds an "attributes" dict to each product with keys:
   marca, pais, region, tipo, varietal, volumen
 
-Much faster than a full re-scrape because it only fetches the JSON-LD
-from each product page (no catalogue discovery, no image scraping).
+Strategy (in order):
+  1. Parse <dl class="woocommerce-product-attributes"> HTML (primary – works on all products)
+  2. Fall back to JSON-LD additionalProperty (only some products have this)
 
 Usage (inside the scraper container):
   python enrich-attributes.py
@@ -17,8 +18,9 @@ Usage (inside the scraper container):
 
 import json
 import os
+import re
 import time
-from typing import Optional
+import unicodedata
 
 import requests
 from bs4 import BeautifulSoup
@@ -40,48 +42,84 @@ HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
 
-# Attribute slugs we care about (pa_* prefix used by panuts WooCommerce)
-WANTED_ATTRS = {"marca", "pais", "region", "tipo", "varietal", "volumen"}
+# Map from normalised Spanish label → our slug key
+LABEL_MAP = {
+    "marca":    "marca",
+    "pais":     "pais",
+    "país":     "pais",
+    "region":   "region",
+    "región":   "region",
+    "tipo":     "tipo",
+    "varietal": "varietal",
+    "volumen":  "volumen",
+}
+
+WANTED_ATTRS = set(LABEL_MAP.values())
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+def normalise(text: str) -> str:
+    """Lower-case + strip accents for robust label matching."""
+    nfkd = unicodedata.normalize("NFKD", text.lower().strip())
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
 def fetch_attributes(session: requests.Session, url: str) -> dict:
-    """Fetch a product page and extract attributes from JSON-LD."""
+    """Fetch a product page and extract attributes."""
     try:
         resp = session.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "lxml")
 
-        for script in soup.select('script[type="application/ld+json"]'):
-            try:
-                data = json.loads(script.string or "")
-                # JSON-LD may be a list
-                if isinstance(data, list):
-                    data = next(
-                        (d for d in data if isinstance(d, dict) and d.get("@type") == "Product"),
-                        {}
-                    )
-                if not isinstance(data, dict) or data.get("@type") != "Product":
-                    continue
+        attrs: dict = {}
 
-                attrs: dict = {}
-                for prop in data.get("additionalProperty", []):
-                    name  = prop.get("name", "")
-                    value = prop.get("value", "")
-                    if not (name and value):
+        # ── Strategy 1: <dl class="woocommerce-product-attributes"> ────────
+        dl = soup.select_one("dl.woocommerce-product-attributes, table.woocommerce-product-attributes")
+        if dl:
+            # dl structure: <dt>Label</dt><dd>Value</dd>
+            dts = dl.select("dt")
+            dds = dl.select("dd")
+            for dt, dd in zip(dts, dds):
+                label = normalise(dt.get_text(strip=True))
+                slug  = LABEL_MAP.get(label)
+                if slug:
+                    value = dd.get_text(" ", strip=True)
+                    # Strip filter links markup, keep only text
+                    value = re.sub(r"\s+", " ", value).strip()
+                    if value:
+                        attrs[slug] = value
+
+        # ── Strategy 2: JSON-LD additionalProperty (fallback) ───────────────
+        if not attrs:
+            for script in soup.select('script[type="application/ld+json"]'):
+                try:
+                    data = json.loads(script.string or "")
+                    if isinstance(data, list):
+                        data = next(
+                            (d for d in data if isinstance(d, dict) and d.get("@type") == "Product"),
+                            {}
+                        )
+                    if not isinstance(data, dict) or data.get("@type") != "Product":
                         continue
-                    # Normalise: "pa_marca" → "marca"
-                    key = name.replace("pa_", "").strip().lower()
-                    if key in WANTED_ATTRS:
-                        attrs[key] = str(value).strip()
+                    for prop in data.get("additionalProperty", []):
+                        name  = prop.get("name", "")
+                        value = prop.get("value", "")
+                        if not (name and value):
+                            continue
+                        key = normalise(name.replace("pa_", ""))
+                        slug = LABEL_MAP.get(key)
+                        if slug:
+                            attrs[slug] = str(value).strip()
+                    if attrs:
+                        break
+                except Exception:
+                    pass
 
-                if attrs:
-                    return attrs
-            except Exception:
-                pass
+        return attrs
+
     except Exception as exc:
         print(f"    [warn] {url}: {exc}")
     return {}
