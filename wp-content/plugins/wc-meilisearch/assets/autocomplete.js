@@ -35,6 +35,9 @@
     .wcm-results-list {
       max-height: 380px; overflow-y: auto; list-style: none; margin: 0; padding: 0;
     }
+    @media (max-width: 600px) {
+      .wcm-results-list { max-height: 180px; }
+    }
     .wcm-results-list li {
       display: flex; align-items: center; gap: 10px;
       padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
@@ -133,6 +136,21 @@
     let currentResults = [];
     let abortController = null;
 
+    // ---- Adjust list height to fit visible viewport (accounts for mobile keyboard) ----
+    function adjustHeight() {
+      if (!window.visualViewport) return;
+      const inputRect = input.getBoundingClientRect();
+      const vvBottom = window.visualViewport.offsetTop + window.visualViewport.height;
+      const spaceBelow = vvBottom - inputRect.bottom;
+      const buttonHeight = viewAllBar.offsetHeight || 52;
+      const newMax = Math.max(spaceBelow - buttonHeight - 12, 60);
+      resultsList.style.maxHeight = newMax + 'px';
+    }
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', adjustHeight);
+    }
+
     // ---- Render results ----
     function render(data) {
       currentResults = data.results || [];
@@ -182,6 +200,7 @@
       }
 
       dropdown.style.display = 'flex';
+      adjustHeight();
     }
 
     // ---- Keyboard navigation ----
