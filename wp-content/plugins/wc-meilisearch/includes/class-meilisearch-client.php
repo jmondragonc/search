@@ -96,11 +96,14 @@ class MeilisearchClient {
             $index->updateFilterableAttributes( [
                 'in_stock', 'categories', 'price', 'stock_status',
                 'attr_marca', 'attr_pais', 'attr_region', 'attr_tipo', 'attr_varietal', 'attr_volumen',
+                'product_priority',
             ] );
-            $index->updateSortableAttributes( [ 'price', 'name' ] );
+            $index->updateSortableAttributes( [ 'price', 'name', 'product_priority' ] );
 
             $index->updateRankingRules( [
-                'words', 'typo', 'proximity', 'attribute', 'sort', 'exactness',
+                'words', 'typo', 'proximity', 'attribute',
+                'product_priority:desc',  // liquors/wines (1) before accessories/glassware (0)
+                'sort', 'exactness',
             ] );
 
             // Lower thresholds so shorter words also benefit from typo tolerance.

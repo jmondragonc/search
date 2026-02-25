@@ -132,6 +132,17 @@ class ProductIndexer {
             }
         }
 
+        // Priority: accessories/glassware go last (0), liquors/wines first (1).
+        // Detected by category names that indicate non-drinkable products.
+        $accessory_pattern = '/copa|decantador|cavas.copas|accesorio/i';
+        $is_accessory      = false;
+        foreach ( $category_names as $cat ) {
+            if ( preg_match( $accessory_pattern, $cat ) ) {
+                $is_accessory = true;
+                break;
+            }
+        }
+
         return [
             'id'           => $product->get_id(),
             'name'         => $name,
@@ -149,12 +160,14 @@ class ProductIndexer {
             'image'        => $image_url ?: '',
             'url'          => get_permalink( $product->get_id() ),
             // Attributes (empty string if not set, to keep document shape consistent).
-            'attr_marca'    => $attrs['marca']    ?? '',
-            'attr_pais'     => $attrs['pais']     ?? '',
-            'attr_region'   => $attrs['region']   ?? '',
-            'attr_tipo'     => $attrs['tipo']      ?? '',
-            'attr_varietal' => $attrs['varietal'] ?? '',
-            'attr_volumen'  => $attrs['volumen']  ?? '',
+            'attr_marca'      => $attrs['marca']    ?? '',
+            'attr_pais'       => $attrs['pais']     ?? '',
+            'attr_region'     => $attrs['region']   ?? '',
+            'attr_tipo'       => $attrs['tipo']      ?? '',
+            'attr_varietal'   => $attrs['varietal'] ?? '',
+            'attr_volumen'    => $attrs['volumen']  ?? '',
+            // 1 = liquor/wine (show first), 0 = accessory/glassware (show last).
+            'product_priority' => $is_accessory ? 0 : 1,
         ];
     }
 
