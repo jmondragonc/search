@@ -82,7 +82,7 @@ class MeilisearchClient {
             $index->updateSearchableAttributes( [
                 'name',
                 'sku',
-                'description',
+                // 'description',  // desactivado temporalmente – reactivar cuando se necesite
                 'categories',
                 'tags',
                 'attr_marca',
