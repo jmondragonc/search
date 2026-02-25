@@ -122,6 +122,16 @@ class ProductIndexer {
 
         $name = $product->get_name();
 
+        // Product attributes (marca, pais, region, tipo, varietal, volumen).
+        $attrs = [];
+        foreach ( $product->get_attributes() as $attr ) {
+            $terms = $attr->get_terms();
+            if ( $terms ) {
+                $key          = str_replace( 'pa_', '', $attr->get_name() );
+                $attrs[ $key ] = implode( ', ', wp_list_pluck( $terms, 'name' ) );
+            }
+        }
+
         return [
             'id'           => $product->get_id(),
             'name'         => $name,
@@ -138,6 +148,13 @@ class ProductIndexer {
             'tags'         => array_values( $tag_names ),
             'image'        => $image_url ?: '',
             'url'          => get_permalink( $product->get_id() ),
+            // Attributes (empty string if not set, to keep document shape consistent).
+            'attr_marca'    => $attrs['marca']    ?? '',
+            'attr_pais'     => $attrs['pais']     ?? '',
+            'attr_region'   => $attrs['region']   ?? '',
+            'attr_tipo'     => $attrs['tipo']      ?? '',
+            'attr_varietal' => $attrs['varietal'] ?? '',
+            'attr_volumen'  => $attrs['volumen']  ?? '',
         ];
     }
 

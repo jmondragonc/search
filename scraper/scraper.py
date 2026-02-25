@@ -60,10 +60,42 @@ class Product:
     url: str
     source: str = "panuts.com"
     external_id: str = ""
+    attributes: dict = field(default_factory=dict)  # marca, pais, region, tipo, varietal, volumen
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+WANTED_ATTRS = {"marca", "pais", "region", "tipo", "varietal", "volumen"}
+
+
+def extract_attributes(soup: BeautifulSoup) -> dict:
+    """Extract WooCommerce product attributes from the page's JSON-LD block."""
+    for script in soup.select('script[type="application/ld+json"]'):
+        try:
+            data = json.loads(script.string or "")
+            if isinstance(data, list):
+                data = next(
+                    (d for d in data if isinstance(d, dict) and d.get("@type") == "Product"),
+                    {}
+                )
+            if not isinstance(data, dict) or data.get("@type") != "Product":
+                continue
+            attrs: dict = {}
+            for prop in data.get("additionalProperty", []):
+                name  = prop.get("name", "")
+                value = prop.get("value", "")
+                if not (name and value):
+                    continue
+                key = name.replace("pa_", "").strip().lower()
+                if key in WANTED_ATTRS:
+                    attrs[key] = str(value).strip()
+            if attrs:
+                return attrs
+        except Exception:
+            pass
+    return {}
+
 
 def parse_price(text: str) -> float:
     """Strip currency symbols and parse float.
@@ -218,6 +250,9 @@ def parse_product_page(soup: BeautifulSoup, url: str) -> Optional[Product]:
         # External ID from URL slug
         slug = urlparse(url).path.strip("/").split("/")[-1]
 
+        # Attributes from JSON-LD structured data (marca, pais, region, tipo, varietal, volumen)
+        attributes = extract_attributes(soup)
+
         return Product(
             name=name,
             sku=sku,
@@ -232,6 +267,7 @@ def parse_product_page(soup: BeautifulSoup, url: str) -> Optional[Product]:
             stock_status=stock_status,
             url=url,
             external_id=slug,
+            attributes=attributes,
         )
 
     except Exception as exc:

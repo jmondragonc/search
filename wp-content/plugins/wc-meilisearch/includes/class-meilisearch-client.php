@@ -78,16 +78,25 @@ class MeilisearchClient {
 
             // name_alt is listed last → lowest relevance weight.
             // It only "wins" in the fallback search where we explicitly target it.
+            // attr_* fields allow searching by brand, country, type, varietal, etc.
             $index->updateSearchableAttributes( [
                 'name',
                 'sku',
                 'description',
                 'categories',
                 'tags',
+                'attr_marca',
+                'attr_pais',
+                'attr_region',
+                'attr_tipo',
+                'attr_varietal',
                 'name_alt',
             ] );
 
-            $index->updateFilterableAttributes( [ 'in_stock', 'categories', 'price', 'stock_status' ] );
+            $index->updateFilterableAttributes( [
+                'in_stock', 'categories', 'price', 'stock_status',
+                'attr_marca', 'attr_pais', 'attr_region', 'attr_tipo', 'attr_varietal', 'attr_volumen',
+            ] );
             $index->updateSortableAttributes( [ 'price', 'name' ] );
 
             $index->updateRankingRules( [

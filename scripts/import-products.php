@@ -129,6 +129,48 @@ foreach ( $products as $data ) {
         $product->set_tag_ids( array_filter( $tag_ids ) );
     }
 
+    // Product attributes (marca, pais, region, tipo, varietal, volumen).
+    if ( ! empty( $data['attributes'] ) && is_array( $data['attributes'] ) ) {
+        static $attr_labels = [
+            'marca'    => 'Marca',
+            'pais'     => 'País',
+            'region'   => 'Región',
+            'tipo'     => 'Tipo',
+            'varietal' => 'Varietal',
+            'volumen'  => 'Volumen',
+        ];
+
+        $wc_attrs = [];
+        foreach ( $data['attributes'] as $slug => $value ) {
+            $value = trim( (string) $value );
+            if ( ! $value ) {
+                continue;
+            }
+            $label   = $attr_labels[ $slug ] ?? ucfirst( $slug );
+            $attr_id = ensure_wc_attribute( $slug, $label );
+            if ( ! $attr_id ) {
+                continue;
+            }
+            $taxonomy = 'pa_' . $slug;
+            $term_id  = ensure_attr_term( $value, $taxonomy );
+            if ( ! $term_id ) {
+                continue;
+            }
+
+            $wc_attr = new WC_Product_Attribute();
+            $wc_attr->set_id( $attr_id );
+            $wc_attr->set_name( $taxonomy );
+            $wc_attr->set_options( [ $term_id ] );
+            $wc_attr->set_visible( true );
+            $wc_attr->set_variation( false );
+            $wc_attrs[] = $wc_attr;
+        }
+
+        if ( ! empty( $wc_attrs ) ) {
+            $product->set_attributes( $wc_attrs );
+        }
+    }
+
     // Save.
     try {
         $product_id = $product->save();
@@ -192,6 +234,52 @@ if ( class_exists( '\WCMeilisearch\ProductIndexer' ) ) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Register a global WooCommerce product attribute if not already present.
+ * Returns the attribute ID (> 0) or 0 on failure.
+ */
+function ensure_wc_attribute( string $slug, string $label ): int {
+    $taxonomy = 'pa_' . $slug;
+    $id       = wc_attribute_taxonomy_id_by_name( $taxonomy );
+    if ( $id ) {
+        return $id;
+    }
+
+    $id = wc_create_attribute( [
+        'name'         => $label,
+        'slug'         => $slug,
+        'type'         => 'select',
+        'order_by'     => 'menu_order',
+        'has_archives' => false,
+    ] );
+
+    if ( is_wp_error( $id ) ) {
+        return 0;
+    }
+
+    // Register the taxonomy immediately so subsequent calls work in the same run.
+    if ( ! taxonomy_exists( $taxonomy ) ) {
+        register_taxonomy( $taxonomy, [ 'product' ] );
+    }
+
+    return (int) $id;
+}
+
+/**
+ * Ensure an attribute term exists; return its term_id.
+ */
+function ensure_attr_term( string $value, string $taxonomy ): ?int {
+    if ( ! taxonomy_exists( $taxonomy ) ) {
+        return null;
+    }
+    $term = get_term_by( 'name', $value, $taxonomy );
+    if ( $term ) {
+        return $term->term_id;
+    }
+    $result = wp_insert_term( $value, $taxonomy );
+    return is_wp_error( $result ) ? null : $result['term_id'];
+}
 
 function ensure_product_cat( string $name ): ?int {
     $term = get_term_by( 'name', $name, 'product_cat' );
