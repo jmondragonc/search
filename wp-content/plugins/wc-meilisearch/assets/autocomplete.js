@@ -30,21 +30,35 @@
       position: absolute; top: 100%; left: 0; right: 0; z-index: 9999;
       background: #fff; border: 1px solid #ddd; border-top: none;
       border-radius: 0 0 4px 4px; box-shadow: 0 4px 12px rgba(0,0,0,.12);
-      max-height: 420px; overflow-y: auto; list-style: none; margin: 0; padding: 0;
+      display: flex; flex-direction: column;
     }
-    .wcm-dropdown li {
+    .wcm-results-list {
+      max-height: 380px; overflow-y: auto; list-style: none; margin: 0; padding: 0;
+    }
+    .wcm-results-list li {
       display: flex; align-items: center; gap: 10px;
       padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
       font-size: 14px; color: #333; text-decoration: none;
     }
-    .wcm-dropdown li:last-child { border-bottom: none; }
-    .wcm-dropdown li:hover, .wcm-dropdown li.wcm-active { background: #f5f5f5; }
-    .wcm-dropdown li img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
-    .wcm-dropdown li .wcm-name { flex: 1; font-weight: 500; }
-    .wcm-dropdown li .wcm-price { color: #0073aa; font-weight: 600; white-space: nowrap; }
-    .wcm-dropdown li .wcm-oos { color: #999; font-size: 12px; }
-    .wcm-dropdown .wcm-no-results { padding: 12px; color: #888; font-style: italic; cursor: default; }
-    .wcm-dropdown .wcm-footer { padding: 6px 12px; font-size: 11px; color: #bbb; text-align: right; cursor: default; }
+    .wcm-results-list li:last-child { border-bottom: none; }
+    .wcm-results-list li:hover, .wcm-results-list li.wcm-active { background: #f5f5f5; }
+    .wcm-results-list li img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
+    .wcm-results-list li .wcm-name { flex: 1; font-weight: 500; }
+    .wcm-results-list li .wcm-price { color: #0073aa; font-weight: 600; white-space: nowrap; }
+    .wcm-results-list li .wcm-oos { color: #999; font-size: 12px; }
+    .wcm-results-list .wcm-no-results { padding: 12px; color: #888; font-style: italic; cursor: default; }
+    .wcm-results-list .wcm-footer { padding: 6px 12px; font-size: 11px; color: #bbb; text-align: right; cursor: default; }
+    .wcm-view-all {
+      border-top: 1px solid #e0e0e0; padding: 8px 10px; background: #fafafa;
+      border-radius: 0 0 4px 4px; flex-shrink: 0;
+    }
+    .wcm-view-all-btn {
+      display: block; width: 100%; padding: 9px 0; text-align: center;
+      background: #0073aa; color: #fff !important; border: none; border-radius: 3px;
+      font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none !important;
+      box-sizing: border-box;
+    }
+    .wcm-view-all-btn:hover { background: #005d8c; color: #fff !important; }
   `;
 
   const styleEl = document.createElement('style');
@@ -85,9 +99,34 @@
     input.parentNode.insertBefore(wrap, input);
     wrap.appendChild(input);
 
-    const dropdown = document.createElement('ul');
+    // Outer dropdown container (flex column).
+    const dropdown = document.createElement('div');
     dropdown.className = 'wcm-dropdown';
     dropdown.style.display = 'none';
+
+    // Scrollable results list.
+    const resultsList = document.createElement('ul');
+    resultsList.className = 'wcm-results-list';
+    dropdown.appendChild(resultsList);
+
+    // Fixed "Ver todos" footer.
+    const viewAllBar = document.createElement('div');
+    viewAllBar.className = 'wcm-view-all';
+    viewAllBar.style.display = 'none';
+    const viewAllBtn = document.createElement('a');
+    viewAllBtn.className = 'wcm-view-all-btn';
+    viewAllBtn.textContent = 'Ver todos los resultados';
+    viewAllBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (q.length >= CONFIG.minChars) {
+        close();
+        window.location.href = '/?s=' + encodeURIComponent(q);
+      }
+    });
+    viewAllBar.appendChild(viewAllBtn);
+    dropdown.appendChild(viewAllBar);
+
     wrap.appendChild(dropdown);
 
     let activeIndex = -1;
@@ -98,13 +137,14 @@
     function render(data) {
       currentResults = data.results || [];
       activeIndex = -1;
-      dropdown.innerHTML = '';
+      resultsList.innerHTML = '';
 
       if (!currentResults.length) {
         const li = document.createElement('li');
         li.className = 'wcm-no-results';
         li.textContent = 'Sin resultados';
-        dropdown.appendChild(li);
+        resultsList.appendChild(li);
+        viewAllBar.style.display = 'none';
       } else {
         currentResults.forEach((product, idx) => {
           const li = document.createElement('li');
@@ -125,7 +165,7 @@
             window.location.href = product.url;
           });
 
-          dropdown.appendChild(li);
+          resultsList.appendChild(li);
         });
 
         // Timing footer.
@@ -134,15 +174,19 @@
         footer.textContent =
           `${currentResults.length} resultado(s) · ${data.processingTimeMs}ms` +
           (data.cached ? ' · caché' : '');
-        dropdown.appendChild(footer);
+        resultsList.appendChild(footer);
+
+        // Update "ver todos" link and show bar.
+        viewAllBtn.href = '/?s=' + encodeURIComponent(input.value.trim());
+        viewAllBar.style.display = 'block';
       }
 
-      dropdown.style.display = 'block';
+      dropdown.style.display = 'flex';
     }
 
     // ---- Keyboard navigation ----
     function setActive(idx) {
-      const items = dropdown.querySelectorAll('li[data-idx]');
+      const items = resultsList.querySelectorAll('li[data-idx]');
       items.forEach((el) => el.classList.remove('wcm-active'));
       if (idx >= 0 && idx < items.length) {
         items[idx].classList.add('wcm-active');
@@ -196,7 +240,7 @@
       }
 
       // Arrow / Escape navigation only makes sense when dropdown is open.
-      const items = dropdown.querySelectorAll('li[data-idx]');
+      const items = resultsList.querySelectorAll('li[data-idx]');
       if (!items.length) return;
 
       if (e.key === 'ArrowDown') {
@@ -222,7 +266,7 @@
 
     input.addEventListener('focus', (e) => {
       if (e.target.value.trim().length >= CONFIG.minChars) {
-        dropdown.style.display = 'block';
+        dropdown.style.display = 'flex';
       }
     });
 
