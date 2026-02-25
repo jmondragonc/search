@@ -165,7 +165,7 @@
       abortController = new AbortController();
 
       try {
-        const url = `${CONFIG.url}?q=${encodeURIComponent(query)}`;
+        const url = `${CONFIG.url}?q=${encodeURIComponent(query)}&limit=20`;
         const resp = await fetch(url, { signal: abortController.signal });
         if (!resp.ok) return;
         const data = await resp.json();
