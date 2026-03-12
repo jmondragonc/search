@@ -1,0 +1,17 @@
+Connect to DEV machine
+---------------------------
+
+Copiar la llave pem al servidor intermedio
+
+scp -i meilisearch-pair.pem meilisearch-pair.pem ec2-user@ec2-44-222-153-79.compute-1.amazonaws.com:/home/ec2-user/
+
+Conectarse al Servidor intermedio 
+
+ssh -i "meilisearch-pair.pem" ec2-user@ec2-44-222-153-79.compute-1.amazonaws.com
+
+
+Conectarse al servidor de destino
+chmod 400 "meilisearch-pair.pem"
+ssh -i "meilisearch-pair.pem" ubuntu@ip-192-168-10-103.ec2.internal
+
+
