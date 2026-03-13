@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WCM_VERSION',     '1.0.8' );
+define( 'WCM_VERSION',     '1.0.9' );
 define( 'WCM_PLUGIN_FILE', __FILE__ );
 define( 'WCM_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'WCM_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -289,10 +289,14 @@ function wcm_render_header_searchbar(): void {
         .wcm-search-icon {
             font-size: 20px;
             color: #666;
+            display: flex;
+            align-items: center;
         }
         #wcm-header-form {
             flex: 1;
             margin: 0;
+            display: flex;
+            align-items: center;
         }
         #wcm-header-input {
             width: 100%;
@@ -303,6 +307,7 @@ function wcm_render_header_searchbar(): void {
             background: transparent;
             padding: 0;
             margin: 0;
+            line-height: normal;
         }
         #wcm-header-input::placeholder {
             color: #a0a0a0;
@@ -313,9 +318,9 @@ function wcm_render_header_searchbar(): void {
             color: #666;
             font-size: 15px;
             cursor: pointer;
-            padding: 4px 8px;
-            align-self: center; /* added to center vertically */
-            margin-top: 2px;
+            padding: 0 8px;
+            display: flex;
+            align-items: center;
         }
         #wcm-modal-close:hover {
             color: #000;
