@@ -2,7 +2,7 @@
 /**
  * Standalone AJAX search endpoint.
  *
- * URL: /wp-content/plugins/wc-meilisearch/ajax-search.php?q=mantequilla
+ * URL: /wp-content/plugins/wc-meilisearch/ajax-search.php?q=mantequilla&cat=Tintos
  *
  * Returns JSON:
  * {
@@ -38,15 +38,16 @@ if ( ! class_exists( '\WCMeilisearch\MeilisearchClient' ) ) {
 // ---------------------------------------------------------------------------
 // Security
 // ---------------------------------------------------------------------------
-if ( ! isset( $_GET['q'] ) || ! is_string( $_GET['q'] ) ) {
+if ( ! isset( $_GET['q'] ) && ! isset( $_GET['cat'] ) ) {
     http_response_code( 400 );
-    echo json_encode( [ 'error' => 'Missing query parameter q' ] );
+    echo json_encode( [ 'error' => 'Missing query or category parameter' ] );
     exit;
 }
 
-$query = trim( sanitize_text_field( wp_unslash( $_GET['q'] ) ) );
+$query = isset( $_GET['q'] ) && is_string( $_GET['q'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['q'] ) ) ) : '';
+$cat   = isset( $_GET['cat'] ) && is_string( $_GET['cat'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['cat'] ) ) ) : '';
 
-if ( strlen( $query ) < 2 ) {
+if ( strlen( $query ) < 2 && empty( $cat ) ) {
     header( 'Content-Type: application/json; charset=utf-8' );
     echo json_encode( [ 'results' => [], 'processingTimeMs' => 0, 'cached' => false ] );
     exit;
@@ -66,8 +67,14 @@ set_transient( $ip_key, microtime( true ), 1 );
 // Search
 // ---------------------------------------------------------------------------
 $limit = isset( $_GET['limit'] ) ? min( (int) $_GET['limit'], 100 ) : 8;
+$options = [ 'limit' => $limit ];
 
-$result = \WCMeilisearch\MeilisearchClient::instance()->search( $query, [ 'limit' => $limit ] );
+if ( ! empty( $cat ) ) {
+    $options['filter'] = [ "categories = '{$cat}'" ]; // Assuming exact category name match
+}
+
+// If query is empty but we have a category, we search for "" (all docs matching the filter)
+$result = \WCMeilisearch\MeilisearchClient::instance()->search( $query, $options );
 
 // ---------------------------------------------------------------------------
 // Response

@@ -1,76 +1,18 @@
 /**
- * WC Meilisearch – Vanilla JS autocomplete widget.
+ * WC Meilisearch – Lightbox Modal JS
  *
- * Attaches to every <input type="search"> and <input name="s"> found in the
- * page, adding a dropdown with live Meilisearch results.
- *
- * Configuration is injected via wp_localize_script as window.wcmSearch:
- *   { ajaxUrl, nonce, minChars, debounce }
+ * Replaces the old dropdown widget.
  */
 (function () {
-  'use strict';
+  "use strict";
 
-  // ---------------------------------------------------------------------------
-  // Guard
-  // ---------------------------------------------------------------------------
-  if (typeof wcmSearch === 'undefined') return;
+  if (typeof wcmSearch === "undefined") return;
 
   const CONFIG = {
-    url:      wcmSearch.ajaxUrl,
+    url: wcmSearch.ajaxUrl,
     minChars: wcmSearch.minChars || 2,
     debounce: wcmSearch.debounce || 150,
   };
-
-  // ---------------------------------------------------------------------------
-  // Styles (injected once)
-  // ---------------------------------------------------------------------------
-  const STYLES = `
-    .wcm-autocomplete-wrap { position: relative; display: inline-block; width: 100%; }
-    .wcm-dropdown {
-      position: absolute; top: 100%; left: 0; right: 0; z-index: 9999;
-      background: #fff; border: 1px solid #ddd; border-top: none;
-      border-radius: 0 0 4px 4px; box-shadow: 0 4px 12px rgba(0,0,0,.12);
-      display: flex; flex-direction: column;
-    }
-    .wcm-results-list {
-      max-height: 380px; overflow-y: auto; list-style: none; margin: 0; padding: 0;
-    }
-    @media (max-width: 600px) {
-      .wcm-results-list { max-height: 180px; }
-    }
-    .wcm-results-list li {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0;
-      font-size: 14px; color: #333; text-decoration: none;
-    }
-    .wcm-results-list li:last-child { border-bottom: none; }
-    .wcm-results-list li:hover, .wcm-results-list li.wcm-active { background: #f5f5f5; }
-    .wcm-results-list li img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
-    .wcm-results-list li .wcm-name { flex: 1; font-weight: 500; }
-    .wcm-results-list li .wcm-price { color: #0073aa; font-weight: 600; white-space: nowrap; }
-    .wcm-results-list li .wcm-oos { color: #999; font-size: 12px; }
-    .wcm-results-list .wcm-no-results { padding: 12px; color: #888; font-style: italic; cursor: default; }
-    .wcm-results-list .wcm-footer { padding: 6px 12px; font-size: 11px; color: #bbb; text-align: right; cursor: default; }
-    .wcm-view-all {
-      border-top: 1px solid #e0e0e0; padding: 8px 10px; background: #fafafa;
-      border-radius: 0 0 4px 4px; flex-shrink: 0;
-    }
-    .wcm-view-all-btn {
-      display: block; width: 100%; padding: 9px 0; text-align: center;
-      background: #0073aa; color: #fff !important; border: none; border-radius: 3px;
-      font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none !important;
-      box-sizing: border-box;
-    }
-    .wcm-view-all-btn:hover { background: #005d8c; color: #fff !important; }
-  `;
-
-  const styleEl = document.createElement('style');
-  styleEl.textContent = STYLES;
-  document.head.appendChild(styleEl);
-
-  // ---------------------------------------------------------------------------
-  // Utilities
-  // ---------------------------------------------------------------------------
 
   function debounce(fn, delay) {
     let timer;
@@ -81,242 +23,348 @@
   }
 
   function formatPrice(price) {
-    if (!price && price !== 0) return '';
-    return 'S/. ' + new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(price);
+    if (!price && price !== 0) return "";
+    return (
+      "S/. " +
+      new Intl.NumberFormat("es-PE", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(price)
+    );
   }
 
   function esc(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
+    const d = document.createElement("div");
+    d.textContent = str || "";
     return d.innerHTML;
   }
 
-  // ---------------------------------------------------------------------------
-  // Widget factory
-  // ---------------------------------------------------------------------------
+  // --- Local Storage for Recent Searches ---
+  function getRecentSearches() {
+    try {
+      return JSON.parse(localStorage.getItem("wcm_recent_searches") || "[]");
+    } catch (e) {
+      return [];
+    }
+  }
 
-  function attachWidget(input) {
-    // Wrap input in a relative container so the dropdown positions correctly.
-    const wrap = document.createElement('div');
-    wrap.className = 'wcm-autocomplete-wrap';
-    input.parentNode.insertBefore(wrap, input);
-    wrap.appendChild(input);
+  function addRecentSearch(query) {
+    let recents = getRecentSearches();
+    recents = recents.filter((q) => q.toLowerCase() !== query.toLowerCase());
+    recents.unshift(query);
+    if (recents.length > 5) recents.pop();
+    localStorage.setItem("wcm_recent_searches", JSON.stringify(recents));
+  }
 
-    // Outer dropdown container (flex column).
-    const dropdown = document.createElement('div');
-    dropdown.className = 'wcm-dropdown';
-    dropdown.style.display = 'none';
+  function clearRecentSearches() {
+    localStorage.removeItem("wcm_recent_searches");
+    renderRecentSearches();
+  }
 
-    // Scrollable results list.
-    const resultsList = document.createElement('ul');
-    resultsList.className = 'wcm-results-list';
-    dropdown.appendChild(resultsList);
+  // --- Initialization ---
+  document.addEventListener("DOMContentLoaded", () => {
+    const trigger = document.getElementById("wcm-header-trigger");
+    const overlay = document.getElementById("wcm-lightbox-overlay");
+    const modal = document.getElementById("wcm-lightbox-modal");
+    const closeBtn = document.getElementById("wcm-modal-close");
+    const input = document.getElementById("wcm-header-input");
 
-    // Fixed "Ver todos" footer.
-    const viewAllBar = document.createElement('div');
-    viewAllBar.className = 'wcm-view-all';
-    viewAllBar.style.display = 'none';
-    const viewAllBtn = document.createElement('a');
-    viewAllBtn.className = 'wcm-view-all-btn';
-    viewAllBtn.textContent = 'Ver todos los resultados';
-    viewAllBtn.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      const q = input.value.trim();
-      if (q.length >= CONFIG.minChars) {
-        close();
-        window.location.href = '/?s=' + encodeURIComponent(q);
-      }
-    });
-    viewAllBar.appendChild(viewAllBtn);
-    dropdown.appendChild(viewAllBar);
+    // Views
+    const initialView = document.getElementById("wcm-initial-view");
+    const resultsView = document.getElementById("wcm-results-view");
+    const resultsGrid = document.getElementById("wcm-search-results");
+    const resultsCount = document.getElementById("wcm-results-count");
+    const viewAllLink = document.getElementById("wcm-view-all-link");
 
-    wrap.appendChild(dropdown);
+    // Recents
+    const recentSection = document.getElementById(
+      "wcm-recent-searches-section",
+    );
+    const recentTagsObj = document.getElementById("wcm-recent-tags");
+    const clearRecentBtn = document.getElementById("wcm-clear-recent");
+
+    // Chips (Filters)
+    const chips = document.querySelectorAll(".wcm-chip");
+    let currentCategoryFilter = "";
 
     let activeIndex = -1;
     let currentResults = [];
     let abortController = null;
 
-    // ---- Adjust list height to fit visible viewport (accounts for mobile keyboard) ----
-    function adjustHeight() {
-      if (!window.visualViewport) return;
-      const inputRect = input.getBoundingClientRect();
-      const vvBottom = window.visualViewport.offsetTop + window.visualViewport.height;
-      const spaceBelow = vvBottom - inputRect.bottom;
-      const buttonHeight = viewAllBar.offsetHeight || 52;
-      const newMax = Math.max(spaceBelow - buttonHeight - 12, 60);
-      resultsList.style.maxHeight = newMax + 'px';
+    if (!overlay || !input) return; // Not initialized on page
+
+    // --- View Toggling ---
+    function showInitialView() {
+      initialView.style.display = "block";
+      resultsView.style.display = "none";
+      renderRecentSearches();
+      // Keep selected category visually
     }
 
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', adjustHeight);
+    function showResultsView() {
+      initialView.style.display = "none";
+      resultsView.style.display = "block";
     }
 
-    // ---- Render results ----
-    function render(data) {
+    // --- Render Recent Searches ---
+    function renderRecentSearches() {
+      const recents = getRecentSearches();
+      if (recents.length === 0) {
+        recentSection.style.display = "none";
+      } else {
+        recentSection.style.display = "block";
+        recentTagsObj.innerHTML = "";
+        recents.forEach((q) => {
+          const btn = document.createElement("button");
+          btn.className = "wcm-tag";
+          btn.textContent = q;
+          btn.addEventListener("click", () => {
+            input.value = q;
+            fetchResults(q, currentCategoryFilter);
+          });
+          recentTagsObj.appendChild(btn);
+        });
+      }
+    }
+
+    if (clearRecentBtn) {
+      clearRecentBtn.addEventListener("click", clearRecentSearches);
+    }
+
+    // Popular tags click
+    document
+      .querySelectorAll("#wcm-initial-view .wcm-tag[data-query]")
+      .forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const q = e.target.dataset.query;
+          input.value = q;
+          fetchResults(q, currentCategoryFilter);
+        });
+      });
+
+    // --- Chips (Category Filters) ---
+    chips.forEach((chip) => {
+      chip.addEventListener("click", (e) => {
+        chips.forEach((c) => c.classList.remove("active"));
+        chip.classList.add("active");
+
+        const filterValue = chip.dataset.filter;
+        currentCategoryFilter = filterValue;
+
+        // If there's text, re-search with the new filter
+        // If empty, we can just show initial view, or do an empty search with filter
+        const val = input.value.trim();
+        if (val.length >= CONFIG.minChars || filterValue) {
+          fetchResults(val, filterValue);
+        } else {
+          showInitialView();
+        }
+      });
+    });
+
+    // --- Helper to build query parameters ---
+    function buildQueryUrl(query, category) {
+      let url = `${CONFIG.url}?limit=20`;
+
+      // If we only have a category but no query text, we can search for '*' (Meilisearch handles empty as all docs)
+      // Note: The backend ajax-search currently requires a 'q' >= 2 chars.
+      // If we want to allow empty queries just by category, we need to modify ajax-search.php.
+      // For now, if q is empty, let's append it anyway, but we'll append category as well.
+
+      url += `&q=${encodeURIComponent(query)}`;
+
+      if (category) {
+        // To filter by facet in Meilisearch via REST API, normally one uses the `filter` body param.
+        // However, since we use GET, we'll send it as a custom parameter 'cat' that the backend will need to parse.
+        url += `&cat=${encodeURIComponent(category)}`;
+      }
+      return url;
+    }
+
+    // --- Render Results ---
+    function render(data, q) {
       currentResults = data.results || [];
       activeIndex = -1;
-      resultsList.innerHTML = '';
+      resultsGrid.innerHTML = "";
 
       if (!currentResults.length) {
-        const li = document.createElement('li');
-        li.className = 'wcm-no-results';
-        li.textContent = 'Sin resultados';
-        resultsList.appendChild(li);
-        viewAllBar.style.display = 'none';
+        resultsCount.textContent = "0 resultados";
+        const empty = document.createElement("div");
+        empty.style.padding = "20px";
+        empty.style.color = "#888";
+        empty.textContent =
+          "No se encontraron productos que coincidan con la búsqueda.";
+        resultsGrid.appendChild(empty);
       } else {
-        currentResults.forEach((product, idx) => {
-          const li = document.createElement('li');
-          li.setAttribute('role', 'option');
-          li.dataset.idx = idx;
+        resultsCount.textContent = `${currentResults.length} resultados`;
+        viewAllLink.href =
+          "/?s=" +
+          encodeURIComponent(q) +
+          (currentCategoryFilter
+            ? "&cat=" + encodeURIComponent(currentCategoryFilter)
+            : "");
 
-          const imgSrc = product.image || '';
+        currentResults.forEach((product, idx) => {
+          const a = document.createElement("a");
+          a.className = "wcm-product-card";
+          a.href = product.url;
+          a.dataset.idx = idx;
+
           const inStock = product.in_stock !== false;
 
-          li.innerHTML =
-            (imgSrc ? `<img src="${esc(imgSrc)}" alt="" loading="lazy">` : '') +
-            `<span class="wcm-name">${esc(product.name)}</span>` +
-            `<span class="wcm-price">${esc(formatPrice(product.price))}</span>` +
-            (!inStock ? '<span class="wcm-oos">Sin stock</span>' : '');
+          // Recreate the layout from the design
+          const categoryText =
+            product.categories && product.categories[0]
+              ? product.categories[0]
+              : "Vino";
 
-          li.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            window.location.href = product.url;
-          });
+          a.innerHTML = `
+            <div class="wcm-product-image-wrap">
+                ${product.image ? `<img src="${esc(product.image)}" alt="" loading="lazy">` : ""}
+            </div>
+            <div class="wcm-product-info">
+                <div class="wcm-product-title">${esc(product.name)}</div>
+                <div class="wcm-product-price-row">
+                    <span class="wcm-product-price">${esc(formatPrice(product.price))}</span>
+                </div>
+                <div class="wcm-product-meta">
+                    <span>${esc(categoryText)}</span>
+                    ${!inStock ? `<span class="wcm-product-meta-dot">•</span> <span style="color:#e53935">Sin stock</span>` : ""}
+                </div>
+            </div>
+          `;
 
-          resultsList.appendChild(li);
+          resultsGrid.appendChild(a);
         });
 
-        // Timing footer.
-        const footer = document.createElement('li');
-        footer.className = 'wcm-footer';
-        footer.textContent =
-          `${currentResults.length} resultado(s) · ${data.processingTimeMs}ms` +
-          (data.cached ? ' · caché' : '');
-        resultsList.appendChild(footer);
-
-        // Update "ver todos" link and show bar.
-        viewAllBtn.href = '/?s=' + encodeURIComponent(input.value.trim());
-        viewAllBar.style.display = 'block';
+        if (q && q.trim().length >= CONFIG.minChars) {
+          addRecentSearch(q.trim());
+        }
       }
 
-      dropdown.style.display = 'flex';
-      adjustHeight();
+      showResultsView();
     }
 
-    // ---- Keyboard navigation ----
+    // --- Fetch Logic ---
+    const fetchResults = debounce(async function (query, category) {
+      // If no query and no category, go home
+      if (query.length < CONFIG.minChars && !category) {
+        showInitialView();
+        return;
+      }
+
+      if (abortController) abortController.abort();
+      abortController = new AbortController();
+
+      try {
+        const url = buildQueryUrl(query, category);
+        const resp = await fetch(url, { signal: abortController.signal });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        render(data, query);
+      } catch (err) {
+        if (err.name !== "AbortError") console.warn("[wcm]", err);
+      }
+    }, CONFIG.debounce);
+
+    // --- Lightbox Open / Close ---
+    function openLightbox() {
+      overlay.style.display = "flex";
+      renderRecentSearches();
+      // Force reflow
+      void overlay.offsetWidth;
+      overlay.classList.add("wcm-open");
+      setTimeout(() => input.focus(), 50);
+      document.body.style.overflow = "hidden"; // prevent scrolling
+    }
+
+    function closeLightbox() {
+      overlay.classList.remove("wcm-open");
+      setTimeout(() => {
+        overlay.style.display = "none";
+        document.body.style.overflow = "";
+      }, 200);
+    }
+
+    if (trigger) {
+      trigger.addEventListener("click", openLightbox);
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener("click", closeLightbox);
+    }
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeLightbox();
+    });
+
+    // Support physical search icon in some themes
+    const existingSearchToggles = document.querySelectorAll(
+      '.search-toggle, [href="#search"]',
+    );
+    existingSearchToggles.forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        openLightbox();
+      });
+    });
+
+    // --- Keyboard & Input Listeners ---
+    input.addEventListener("input", (e) => {
+      const val = e.target.value.trim();
+      if (val === "" && !currentCategoryFilter) {
+        showInitialView();
+      } else {
+        fetchResults(val, currentCategoryFilter);
+      }
+    });
+
     function setActive(idx) {
-      const items = resultsList.querySelectorAll('li[data-idx]');
-      items.forEach((el) => el.classList.remove('wcm-active'));
+      const items = resultsGrid.querySelectorAll(".wcm-product-card");
+      items.forEach((el) => el.classList.remove("wcm-active"));
       if (idx >= 0 && idx < items.length) {
-        items[idx].classList.add('wcm-active');
+        items[idx].classList.add("wcm-active");
+        items[idx].scrollIntoView({ block: "nearest", behavior: "smooth" });
         activeIndex = idx;
       } else {
         activeIndex = -1;
       }
     }
 
-    function close() {
-      dropdown.style.display = 'none';
-      activeIndex = -1;
-    }
+    window.addEventListener("keydown", (e) => {
+      if (!overlay.classList.contains("wcm-open")) return;
 
-    // ---- Fetch ----
-    const fetchResults = debounce(async function (query) {
-      if (query.length < CONFIG.minChars) { close(); return; }
-
-      if (abortController) abortController.abort();
-      abortController = new AbortController();
-
-      try {
-        const url = `${CONFIG.url}?q=${encodeURIComponent(query)}&limit=20`;
-        const resp = await fetch(url, { signal: abortController.signal });
-        if (!resp.ok) return;
-        const data = await resp.json();
-        render(data);
-      } catch (err) {
-        if (err.name !== 'AbortError') console.warn('[wcm]', err);
-      }
-    }, CONFIG.debounce);
-
-    // ---- Event listeners ----
-    input.addEventListener('input', (e) => fetchResults(e.target.value.trim()));
-
-    input.addEventListener('keydown', (e) => {
-      // Handle Enter regardless of whether the dropdown is open.
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (activeIndex >= 0) {
-          const product = currentResults[activeIndex];
-          if (product) window.location.href = product.url;
-        } else {
-          const q = input.value.trim();
-          if (q.length >= CONFIG.minChars) {
-            close();
-            window.location.href = '/?s=' + encodeURIComponent(q);
-          }
-        }
+      if (e.key === "Escape") {
+        closeLightbox();
         return;
       }
 
-      // Arrow / Escape navigation only makes sense when dropdown is open.
-      const items = resultsList.querySelectorAll('li[data-idx]');
-      if (!items.length) return;
+      if (resultsView.style.display === "block") {
+        const items = resultsGrid.querySelectorAll(".wcm-product-card");
 
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setActive(Math.min(activeIndex + 1, items.length - 1));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setActive(Math.max(activeIndex - 1, 0));
-      } else if (e.key === 'Escape') {
-        close();
-      }
-    });
-
-    // Mobile keyboards fire a 'search' event on <input type="search"> when
-    // the user taps the Search / Go / Ir button. Handle it the same way.
-    input.addEventListener('search', () => {
-      const q = input.value.trim();
-      if (q.length >= CONFIG.minChars) {
-        close();
-        window.location.href = '/?s=' + encodeURIComponent(q);
-      }
-    });
-
-    input.addEventListener('focus', (e) => {
-      if (e.target.value.trim().length >= CONFIG.minChars) {
-        dropdown.style.display = 'flex';
-      }
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!wrap.contains(e.target)) close();
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Attach to all search inputs on DOMContentLoaded
-  // ---------------------------------------------------------------------------
-  function init() {
-    const selectors = [
-      'input[type="search"]',
-      'input[name="s"]',
-      '.search-field',
-    ];
-
-    selectors.forEach((sel) => {
-      document.querySelectorAll(sel).forEach((el) => {
-        if (!el.dataset.wcmAttached) {
-          el.dataset.wcmAttached = '1';
-          attachWidget(el);
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setActive(Math.min(activeIndex + 1, items.length - 1));
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setActive(Math.max(activeIndex - 1, -1));
+          if (activeIndex === -1) input.focus();
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          if (activeIndex >= 0) {
+            const el = items[activeIndex];
+            if (el) window.location.href = el.href;
+          } else {
+            const q = input.value.trim();
+            if (q.length >= CONFIG.minChars || currentCategoryFilter) {
+              window.location.href =
+                "/?s=" +
+                encodeURIComponent(q) +
+                (currentCategoryFilter
+                  ? "&cat=" + encodeURIComponent(currentCategoryFilter)
+                  : "");
+            }
+          }
         }
-      });
+      }
     });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  });
 })();
