@@ -110,12 +110,9 @@ function wcm_render_header_searchbar(): void {
                         <button id="wcm-modal-close">Cerrar</button>
                     <?php endif; ?>
                 </div>
-            </div>
-
-            <!-- Wrapper for everything below the input (Chips + Content) -->
-            <div class="wcm-dropdown-inner-content">
-                <!-- Chips (Filtros Rápidos) -->
-                <div class="wcm-chips-container" <?php if ( 'yes' !== $enable_lb ) echo 'style="padding: 10px 24px; border-bottom: 1px solid #f0f0f0;"'; ?>>
+                <?php if ( 'yes' === $enable_lb ) : ?>
+                <!-- Chips inside header (Lightbox mode only) -->
+                <div class="wcm-chips-container">
                     <button class="wcm-chip active" data-filter="">
                         <span class="wcm-chip-icon">🍷</span> Todos
                     </button>
@@ -128,17 +125,12 @@ function wcm_render_header_searchbar(): void {
                         'orderby'    => 'count',
                         'order'      => 'DESC',
                     ] );
-
                     if ( ! is_wp_error( $top_categories ) && ! empty( $top_categories ) ) {
                         foreach ( $top_categories as $cat ) {
                             $icon = '🍷';
-                            if ( stripos( $cat->name, 'espumante' ) !== false ) {
-                                $icon = '✨';
-                            } elseif ( stripos( $cat->name, 'cerveza' ) !== false ) {
-                                $icon = '🍺';
-                            } elseif ( stripos( $cat->name, 'licor' ) !== false || stripos( $cat->name, 'destilado' ) !== false ) {
-                                $icon = '🥃';
-                            }
+                            if ( stripos( $cat->name, 'espumante' ) !== false ) { $icon = '✨'; }
+                            elseif ( stripos( $cat->name, 'cerveza' ) !== false ) { $icon = '🍺'; }
+                            elseif ( stripos( $cat->name, 'licor' ) !== false || stripos( $cat->name, 'destilado' ) !== false ) { $icon = '🥃'; }
                             echo '<button class="wcm-chip" data-filter="' . esc_attr( $cat->name ) . '">';
                             echo '<span class="wcm-chip-icon">' . $icon . '</span> ' . esc_html( $cat->name );
                             echo '</button>';
@@ -146,6 +138,40 @@ function wcm_render_header_searchbar(): void {
                     }
                     ?>
                 </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Wrapper for everything below the header (Classic: chips + content; Lightbox: content only) -->
+            <div class="wcm-dropdown-inner-content">
+                <?php if ( 'yes' !== $enable_lb ) : ?>
+                <!-- Chips inside dropdown (Classic mode only) -->
+                <div class="wcm-chips-container" style="padding: 10px 16px; border-bottom: 1px solid #f0f0f0; background:#fff;">
+                    <button class="wcm-chip active" data-filter="">
+                        <span class="wcm-chip-icon">🍷</span> Todos
+                    </button>
+                    <?php
+                    $top_categories_classic = get_terms( [
+                        'taxonomy'   => 'product_cat',
+                        'hide_empty' => true,
+                        'parent'     => 0,
+                        'number'     => 6,
+                        'orderby'    => 'count',
+                        'order'      => 'DESC',
+                    ] );
+                    if ( ! is_wp_error( $top_categories_classic ) && ! empty( $top_categories_classic ) ) {
+                        foreach ( $top_categories_classic as $cat ) {
+                            $icon = '🍷';
+                            if ( stripos( $cat->name, 'espumante' ) !== false ) { $icon = '✨'; }
+                            elseif ( stripos( $cat->name, 'cerveza' ) !== false ) { $icon = '🍺'; }
+                            elseif ( stripos( $cat->name, 'licor' ) !== false || stripos( $cat->name, 'destilado' ) !== false ) { $icon = '🥃'; }
+                            echo '<button class="wcm-chip" data-filter="' . esc_attr( $cat->name ) . '">';
+                            echo '<span class="wcm-chip-icon">' . $icon . '</span> ' . esc_html( $cat->name );
+                            echo '</button>';
+                        }
+                    }
+                    ?>
+                </div>
+                <?php endif; ?>
 
                 <!-- Modal Content (Scrollable) -->
                 <div class="wcm-modal-content">
@@ -180,9 +206,7 @@ function wcm_render_header_searchbar(): void {
                             <div class="wcm-section-header">
                                 <span class="wcm-section-title">✨ Productos destacados</span>
                             </div>
-                            <div class="wcm-results-grid" id="wcm-featured-results">
-                                <!-- Destacados se cargan por JS/AJAX inicial o hardcodeados temporalmente -->
-                            </div>
+                            <div class="wcm-results-grid" id="wcm-featured-results"></div>
                         </div>
                     </div>
 
@@ -192,9 +216,7 @@ function wcm_render_header_searchbar(): void {
                             <span id="wcm-results-count">0 resultados</span>
                             <a href="#" id="wcm-view-all-link">Ver todos →</a>
                         </div>
-                        <div class="wcm-results-grid" id="wcm-search-results">
-                            <!-- Resultados inyectados por JS -->
-                        </div>
+                        <div class="wcm-results-grid" id="wcm-search-results"></div>
                     </div>
 
                 </div>
