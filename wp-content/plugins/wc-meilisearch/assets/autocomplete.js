@@ -284,15 +284,22 @@
       // Force reflow
       void overlay.offsetWidth;
       overlay.classList.add("wcm-open");
-      setTimeout(() => input.focus(), 50);
-      document.body.style.overflow = "hidden"; // prevent scrolling
+
+      const isClassic = overlay.classList.contains("wcm-is-classic");
+      if (!isClassic) {
+        setTimeout(() => input.focus(), 50);
+        document.body.style.overflow = "hidden"; // prevent scrolling
+      }
     }
 
     function closeLightbox() {
       overlay.classList.remove("wcm-open");
+      const isClassic = overlay.classList.contains("wcm-is-classic");
       setTimeout(() => {
         overlay.style.display = "none";
-        document.body.style.overflow = "";
+        if (!isClassic) {
+          document.body.style.overflow = "";
+        }
       }, 200);
     }
 
@@ -302,8 +309,26 @@
     if (closeBtn) {
       closeBtn.addEventListener("click", closeLightbox);
     }
+
+    // In classic mode, clicking the input itself opens the dropdown
+    if (input) {
+      input.addEventListener("focus", openLightbox);
+      input.addEventListener("click", openLightbox);
+    }
+
     overlay.addEventListener("click", (e) => {
+      // In classic mode, clicking the transparent overlay closes it.
       if (e.target === overlay) closeLightbox();
+    });
+
+    // Close when clicking outside in classic mode
+    document.addEventListener("click", (e) => {
+      const isClassic = overlay.classList.contains("wcm-is-classic");
+      if (isClassic && overlay.classList.contains("wcm-open")) {
+        if (!overlay.contains(e.target) && e.target !== input) {
+          closeLightbox();
+        }
+      }
     });
 
     // Support physical search icon in some themes

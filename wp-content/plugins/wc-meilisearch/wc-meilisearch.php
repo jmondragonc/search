@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WCM_VERSION',     '1.1.2' );
+define( 'WCM_VERSION',     '1.1.3' );
 define( 'WCM_PLUGIN_FILE', __FILE__ );
 define( 'WCM_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'WCM_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -81,60 +81,70 @@ function wcm_render_header_searchbar(): void {
                 </div>
             </div>
         </div>
-
-        <!-- Lightbox Modal -->
-        <div id="wcm-lightbox-overlay" style="display: none;">
-            <div id="wcm-lightbox-modal">
-                
-                <!-- Modal Header -->
-                <div class="wcm-modal-header">
-                    <div class="wcm-search-input-wrapper">
+        <?php
+    }
+    
+    $container_class = ( 'yes' === $enable_lb ) ? 'wcm-is-lightbox' : 'wcm-is-classic';
+    ?>
+    <!-- Lightbox Modal / Classic Dropdown -->
+    <div id="wcm-lightbox-overlay" class="<?php echo esc_attr( $container_class ); ?>" style="display: none;">
+        <div id="wcm-lightbox-modal">
+            
+            <!-- Modal Header -->
+            <div class="wcm-modal-header">
+                <div class="wcm-search-input-wrapper">
+                    <?php if ( 'yes' === $enable_lb ) : ?>
                         <img src="<?php echo esc_url( WCM_PLUGIN_URL . '1f50d.svg' ); ?>" alt="Search" class="wcm-search-icon" width="20" height="20">
-                        <form action="/" method="get" role="search" id="wcm-header-form" onsubmit="return false;">
-                            <input
-                                type="search"
-                                id="wcm-header-input"
-                                name="s"
-                                placeholder="Buscar vinos, categorías, ofertas..."
-                                autocomplete="off"
-                                aria-label="Buscar productos"
-                            >
-                        </form>
+                    <?php endif; ?>
+                    <form action="/" method="get" role="search" id="wcm-header-form" onsubmit="return false;">
+                        <input
+                            type="search"
+                            id="wcm-header-input"
+                            name="s"
+                            placeholder="Buscar vinos, categorías, ofertas..."
+                            autocomplete="off"
+                            aria-label="Buscar productos"
+                        >
+                    </form>
+                    <?php if ( 'yes' === $enable_lb ) : ?>
                         <button id="wcm-modal-close">Cerrar</button>
-                    </div>
-                    
-                    <!-- Chips (Filtros Rápidos) -->
-                    <div class="wcm-chips-container">
-                        <button class="wcm-chip active" data-filter="">
-                            <span class="wcm-chip-icon">🍷</span> Todos
-                        </button>
-                        <?php
-                        $top_categories = get_terms( [
-                            'taxonomy'   => 'product_cat',
-                            'hide_empty' => true,
-                            'parent'     => 0,
-                            'number'     => 6,
-                            'orderby'    => 'count',
-                            'order'      => 'DESC',
-                        ] );
+                    <?php endif; ?>
+                </div>
+            </div>
 
-                        if ( ! is_wp_error( $top_categories ) && ! empty( $top_categories ) ) {
-                            foreach ( $top_categories as $cat ) {
-                                $icon = '🍷';
-                                if ( stripos( $cat->name, 'espumante' ) !== false ) {
-                                    $icon = '✨';
-                                } elseif ( stripos( $cat->name, 'cerveza' ) !== false ) {
-                                    $icon = '🍺';
-                                } elseif ( stripos( $cat->name, 'licor' ) !== false || stripos( $cat->name, 'destilado' ) !== false ) {
-                                    $icon = '🥃';
-                                }
-                                echo '<button class="wcm-chip" data-filter="' . esc_attr( $cat->name ) . '">';
-                                echo '<span class="wcm-chip-icon">' . $icon . '</span> ' . esc_html( $cat->name );
-                                echo '</button>';
+            <!-- Wrapper for everything below the input (Chips + Content) -->
+            <div class="wcm-dropdown-inner-content">
+                <!-- Chips (Filtros Rápidos) -->
+                <div class="wcm-chips-container" <?php if ( 'yes' !== $enable_lb ) echo 'style="padding: 10px 24px; border-bottom: 1px solid #f0f0f0;"'; ?>>
+                    <button class="wcm-chip active" data-filter="">
+                        <span class="wcm-chip-icon">🍷</span> Todos
+                    </button>
+                    <?php
+                    $top_categories = get_terms( [
+                        'taxonomy'   => 'product_cat',
+                        'hide_empty' => true,
+                        'parent'     => 0,
+                        'number'     => 6,
+                        'orderby'    => 'count',
+                        'order'      => 'DESC',
+                    ] );
+
+                    if ( ! is_wp_error( $top_categories ) && ! empty( $top_categories ) ) {
+                        foreach ( $top_categories as $cat ) {
+                            $icon = '🍷';
+                            if ( stripos( $cat->name, 'espumante' ) !== false ) {
+                                $icon = '✨';
+                            } elseif ( stripos( $cat->name, 'cerveza' ) !== false ) {
+                                $icon = '🍺';
+                            } elseif ( stripos( $cat->name, 'licor' ) !== false || stripos( $cat->name, 'destilado' ) !== false ) {
+                                $icon = '🥃';
                             }
+                            echo '<button class="wcm-chip" data-filter="' . esc_attr( $cat->name ) . '">';
+                            echo '<span class="wcm-chip-icon">' . $icon . '</span> ' . esc_html( $cat->name );
+                            echo '</button>';
                         }
-                        ?>
-                    </div>
+                    }
+                    ?>
                 </div>
 
                 <!-- Modal Content (Scrollable) -->
@@ -190,27 +200,7 @@ function wcm_render_header_searchbar(): void {
                 </div>
             </div>
         </div>
-        <?php
-    } else {
-        // --- MODO CLÁSICO (DROPDOWN) ---
-        ?>
-        <div id="wcm-search-container">
-            <div id="wcm-search-wrapper">
-                <form action="/" method="get" role="search" id="wcm-header-form" onsubmit="return false;">
-                    <input
-                        type="search"
-                        id="wcm-header-input"
-                        name="s"
-                        placeholder="Buscar vinos, categorías, ofertas..."
-                        autocomplete="off"
-                        aria-label="Buscar productos"
-                    >
-                </form>
-                <div id="wcm-autocomplete-results" style="display: none;"></div>
-            </div>
-        </div>
-        <?php
-    }
+    </div>
     ?>
 
     <!-- Estilos del Lightbox -->
@@ -251,8 +241,57 @@ function wcm_render_header_searchbar(): void {
         }
         body { padding-top: 65px !important; }
 
-        /* Lightbox Overlay */
-        #wcm-lightbox-overlay {
+        /* Classic Mode Specific CSS */
+        #wcm-lightbox-overlay.wcm-is-classic {
+            display: block !important;
+            position: relative;
+            padding: 0;
+            background: transparent;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            opacity: 1;
+            z-index: 999;
+        }
+        #wcm-lightbox-overlay.wcm-is-classic #wcm-lightbox-modal {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: none;
+            border: 1px solid #ddd;
+            transform: none;
+            overflow: visible;
+        }
+        #wcm-lightbox-overlay.wcm-is-classic .wcm-modal-header {
+            padding: 10px 16px;
+            border-bottom: none;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        #wcm-lightbox-overlay.wcm-is-classic input#wcm-header-input {
+            font-size: 15px;
+        }
+        #wcm-lightbox-overlay.wcm-is-classic .wcm-dropdown-inner-content {
+            display: none;
+            position: absolute;
+            top: calc(100% + 5px);
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            border: 1px solid #eaeaea;
+            overflow: hidden;
+            z-index: 1000;
+        }
+        #wcm-lightbox-overlay.wcm-is-classic.wcm-open .wcm-dropdown-inner-content {
+            display: block;
+        }
+        #wcm-lightbox-overlay.wcm-is-classic .wcm-modal-content {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* Lightbox Model CSS */
+        #wcm-lightbox-overlay.wcm-is-lightbox {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0, 0, 0, 0.6);
@@ -266,12 +305,10 @@ function wcm_render_header_searchbar(): void {
             opacity: 0;
             transition: opacity 0.2s ease;
         }
-        #wcm-lightbox-overlay.wcm-open {
+        #wcm-lightbox-overlay.wcm-is-lightbox.wcm-open {
             opacity: 1;
         }
-
-        /* Lightbox Modal */
-        #wcm-lightbox-modal {
+        #wcm-lightbox-overlay.wcm-is-lightbox #wcm-lightbox-modal {
             width: 100%;
             max-width: 680px;
             background: #ffffff;
@@ -285,11 +322,11 @@ function wcm_render_header_searchbar(): void {
             transition: transform 0.2s ease;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
-        #wcm-lightbox-overlay.wcm-open #wcm-lightbox-modal {
+        #wcm-lightbox-overlay.wcm-is-lightbox.wcm-open #wcm-lightbox-modal {
             transform: translateY(0) scale(1);
         }
 
-        /* Modal Header */
+        /* Common Structure */
         .wcm-modal-header {
             padding: 20px 24px 16px 24px;
             border-bottom: 1px solid #f0f0f0;
