@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WCM_VERSION',     '1.0.5' );
+define( 'WCM_VERSION',     '1.0.7' );
 define( 'WCM_PLUGIN_FILE', __FILE__ );
 define( 'WCM_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'WCM_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -166,7 +166,7 @@ function wcm_render_header_searchbar(): void {
                     <div id="wcm-results-view" style="display: none;">
                         <div class="wcm-results-header">
                             <span id="wcm-results-count">0 resultados</span>
-                            <a href="#" id="wcm-view-all-link" style="display:none;">Ver todos →</a>
+                            <a href="#" id="wcm-view-all-link">Ver todos →</a>
                         </div>
                         <div class="wcm-results-grid" id="wcm-search-results">
                             <!-- Resultados inyectados por JS -->

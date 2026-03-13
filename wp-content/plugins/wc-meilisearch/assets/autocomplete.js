@@ -42,7 +42,7 @@
   // --- Local Storage for Recent Searches ---
   function getRecentSearches() {
     try {
-      return JSON.parse(localStorage.getItem("wcm_recent_searches") || "[]");
+      return JSON.parse(localStorage.getItem("wcm_recent_searches_v2") || "[]");
     } catch (e) {
       return [];
     }
@@ -53,11 +53,11 @@
     recents = recents.filter((q) => q.toLowerCase() !== query.toLowerCase());
     recents.unshift(query);
     if (recents.length > 5) recents.pop();
-    localStorage.setItem("wcm_recent_searches", JSON.stringify(recents));
+    localStorage.setItem("wcm_recent_searches_v2", JSON.stringify(recents));
   }
 
   function clearRecentSearches() {
-    localStorage.removeItem("wcm_recent_searches");
+    localStorage.removeItem("wcm_recent_searches_v2");
     renderRecentSearches();
   }
 
@@ -139,6 +139,7 @@
           const q = e.target.dataset.query;
           input.value = q;
           fetchResults(q, currentCategoryFilter);
+          addRecentSearch(q);
         });
       });
 
@@ -242,6 +243,17 @@
 
       showResultsView();
     }
+
+    // Capture search when clicking a result card
+    resultsGrid.addEventListener("click", (e) => {
+      const card = e.target.closest(".wcm-product-card");
+      if (card) {
+        const q = input.value.trim();
+        if (q && q.length >= CONFIG.minChars) {
+          addRecentSearch(q);
+        }
+      }
+    });
 
     // --- Fetch Logic ---
     const fetchResults = debounce(async function (query, category) {
