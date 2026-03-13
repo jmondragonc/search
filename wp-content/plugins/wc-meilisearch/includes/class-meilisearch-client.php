@@ -173,6 +173,18 @@ class MeilisearchClient {
             }
         }
 
+        // --- Layer 4: compound-split THEN first-char-strip on name_alt ---
+        // "zantajul" → split→("zanta","jul") → strip→("anta","ul") → name_alt.
+        // Handles compound words where the first char is also wrong.
+        // Uses Meilisearch prefix on the last (short) word, no matchingStrategy tricks.
+        if ( empty( $data['results'] ) ) {
+            $alt = $this->try_compound_split_then_strip( $query, $options );
+            if ( $alt !== null ) {
+                $data             = $alt;
+                $data['fallback'] = 'compound_strip';
+            }
+        }
+
         $data['cached'] = false;
 
         // --- Cache write (only when we have results) ---
@@ -250,6 +262,56 @@ class MeilisearchClient {
         $result = $this->raw_search( $alt_query, $alt_options );
 
         return empty( $result['results'] ) ? null : $result;
+    }
+
+    /**
+     * Split each compound word at every position (range 4..len-3), strip the
+     * first character of every resulting part, then search in name_alt.
+     *
+     * "zantajul" → split i=5 → "zanta"+"jul" → strip → "anta"+"ul"
+     *            → name_alt search: "anta ul"
+     *            → Meilisearch prefix-matches "ul*" → "ulia" → Santa Julia ✓
+     *
+     * Range len-3 (vs len-4 in Layer 2) captures short right-side tails (3 chars)
+     * that work via Meilisearch's built-in last-word prefix matching.
+     */
+    private function try_compound_split_then_strip( string $query, array $options ): ?array {
+        $words      = preg_split( '/\s+/u', trim( $query ), -1, PREG_SPLIT_NO_EMPTY ) ?: [];
+        $candidates = [];
+
+        foreach ( $words as $word ) {
+            $len = mb_strlen( $word, 'UTF-8' );
+            if ( $len < 7 ) {
+                continue;
+            }
+            for ( $i = 4; $i <= $len - 3; $i++ ) {
+                $left  = mb_substr( $word, 0, $i, 'UTF-8' );
+                $right = mb_substr( $word, $i, null, 'UTF-8' );
+
+                $other_words = array_filter( $words, fn( $w ) => $w !== $word );
+                $parts       = array_merge( [ $left, $right ], array_values( $other_words ) );
+                $candidates[] = implode( ' ', $parts );
+            }
+        }
+
+        if ( empty( $candidates ) ) {
+            return null;
+        }
+
+        $alt_options = array_merge(
+            $options,
+            [ 'attributesToSearchOn' => [ 'name_alt' ] ]
+        );
+
+        foreach ( $candidates as $candidate ) {
+            $stripped = $this->strip_first_chars( $candidate );
+            $result   = $this->raw_search( $stripped, $alt_options );
+            if ( ! empty( $result['results'] ) ) {
+                return $result;
+            }
+        }
+
+        return null;
     }
 
     /**
