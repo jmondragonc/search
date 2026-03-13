@@ -48,10 +48,11 @@ class AdminPage {
 
     public function register_settings(): void {
         $fields = [
-            'wcm_meili_host'  => __( 'Meilisearch Host', 'wc-meilisearch' ),
-            'wcm_meili_key'   => __( 'Master Key', 'wc-meilisearch' ),
-            'wcm_redis_host'  => __( 'Redis Host', 'wc-meilisearch' ),
-            'wcm_redis_port'  => __( 'Redis Port', 'wc-meilisearch' ),
+            'wcm_meili_host'       => __( 'Meilisearch Host', 'wc-meilisearch' ),
+            'wcm_meili_key'        => __( 'Master Key', 'wc-meilisearch' ),
+            'wcm_redis_host'       => __( 'Redis Host', 'wc-meilisearch' ),
+            'wcm_redis_port'       => __( 'Redis Port', 'wc-meilisearch' ),
+            'wcm_enable_lightbox'  => __( 'Activar modo Lightbox', 'wc-meilisearch' ),
         ];
 
         foreach ( $fields as $option_name => $label ) {
@@ -128,6 +129,7 @@ class AdminPage {
         $meili_key   = esc_attr( get_option( 'wcm_meili_key',  getenv( 'MEILI_MASTER_KEY' ) ?: '' ) );
         $redis_host  = esc_attr( get_option( 'wcm_redis_host', getenv( 'REDIS_HOST' ) ?: 'redis' ) );
         $redis_port  = esc_attr( get_option( 'wcm_redis_port', getenv( 'REDIS_PORT' ) ?: '6379' ) );
+        $enable_lb   = get_option( 'wcm_enable_lightbox', 'yes' ); // Default to yes for backward compatibility step
         ?>
         <div class="wrap">
             <h1><?php esc_html_e( 'WC Meilisearch', 'wc-meilisearch' ); ?></h1>
@@ -137,6 +139,16 @@ class AdminPage {
                 <input type="hidden" name="wcm_save_settings" value="1">
 
                 <table class="form-table" role="presentation">
+                    <tr>
+                        <th scope="row"><label for="wcm_enable_lightbox"><?php esc_html_e( 'Interfaz de Buscador', 'wc-meilisearch' ); ?></label></th>
+                        <td>
+                            <select id="wcm_enable_lightbox" name="wcm_enable_lightbox">
+                                <option value="yes" <?php selected( $enable_lb, 'yes' ); ?>><?php esc_html_e( 'Modo Lightbox (Moderno)', 'wc-meilisearch' ); ?></option>
+                                <option value="no" <?php selected( $enable_lb, 'no' ); ?>><?php esc_html_e( 'Modo Clásico (Dropdown)', 'wc-meilisearch' ); ?></option>
+                            </select>
+                            <p class="description"><?php esc_html_e( 'El modo Lightbox muestra un pop-up central. El clásico se despliega debajo del input.', 'wc-meilisearch' ); ?></p>
+                        </td>
+                    </tr>
                     <tr>
                         <th scope="row"><label for="wcm_meili_host"><?php esc_html_e( 'Meilisearch Host', 'wc-meilisearch' ); ?></label></th>
                         <td><input type="url" id="wcm_meili_host" name="wcm_meili_host" value="<?php echo $meili_host; ?>" class="regular-text"></td>

@@ -237,9 +237,7 @@
           resultsGrid.appendChild(a);
         });
 
-        if (q && q.trim().length >= CONFIG.minChars) {
-          addRecentSearch(q.trim());
-        }
+        // Only save to recent searches when explicitly searching (enter or click 'ver todos')
       }
 
       showResultsView();
@@ -355,6 +353,7 @@
           } else {
             const q = input.value.trim();
             if (q.length >= CONFIG.minChars || currentCategoryFilter) {
+              if (q) addRecentSearch(q);
               window.location.href =
                 "/?s=" +
                 encodeURIComponent(q) +
@@ -366,5 +365,31 @@
         }
       }
     });
+
+    // Handle "Ver todos" explicitly saving the search
+    if (viewAllLink) {
+      viewAllLink.addEventListener("click", (e) => {
+        const q = input.value.trim();
+        if (q) addRecentSearch(q);
+      });
+    }
+
+    // Handle form submit explicitly saving the search
+    const form = document.getElementById("wcm-header-form");
+    if (form) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const q = input.value.trim();
+        if (q) addRecentSearch(q);
+        if (q.length >= CONFIG.minChars || currentCategoryFilter) {
+          window.location.href =
+            "/?s=" +
+            encodeURIComponent(q) +
+            (currentCategoryFilter
+              ? "&cat=" + encodeURIComponent(currentCategoryFilter)
+              : "");
+        }
+      });
+    }
   });
 })();

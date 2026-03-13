@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WCM_VERSION',     '1.0.4' );
+define( 'WCM_VERSION',     '1.0.5' );
 define( 'WCM_PLUGIN_FILE', __FILE__ );
 define( 'WCM_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'WCM_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -67,118 +67,137 @@ add_action( 'plugins_loaded', function () {
  * Works with any theme – no template modifications needed.
  */
 function wcm_render_header_searchbar(): void {
+    $enable_lb = get_option( 'wcm_enable_lightbox', 'yes' );
+
+    if ( 'yes' === $enable_lb ) {
+        // --- MODO LIGHTBOX (MODERNO) ---
+        ?>
+        <!-- Trigger Button (Sticky Header or similar) -->
+        <div id="wcm-header-bar">
+            <div id="wcm-header-inner">
+                <span id="wcm-logo">🔍</span>
+                <div id="wcm-header-trigger">
+                    <span class="wcm-search-placeholder">Buscar vinos, categorías, ofertas...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lightbox Modal -->
+        <div id="wcm-lightbox-overlay" style="display: none;">
+            <div id="wcm-lightbox-modal">
+                
+                <!-- Modal Header -->
+                <div class="wcm-modal-header">
+                    <div class="wcm-search-input-wrapper">
+                        <span class="wcm-search-icon">🔍</span>
+                        <form action="/" method="get" role="search" id="wcm-header-form" onsubmit="return false;">
+                            <input
+                                type="search"
+                                id="wcm-header-input"
+                                name="s"
+                                placeholder="Buscar vinos, categorías, ofertas..."
+                                autocomplete="off"
+                                aria-label="Buscar productos"
+                            >
+                        </form>
+                        <button id="wcm-modal-close">Cerrar</button>
+                    </div>
+                    
+                    <!-- Chips (Filtros Rápidos) -->
+                    <div class="wcm-chips-container">
+                        <button class="wcm-chip active" data-filter="">
+                            <span class="wcm-chip-icon">🍷</span> Todos
+                        </button>
+                        <button class="wcm-chip" data-filter="Tintos">
+                            <span class="wcm-chip-icon">🍷</span> Tintos
+                        </button>
+                        <button class="wcm-chip" data-filter="Blancos">
+                            <span class="wcm-chip-icon">🍷</span> Blancos
+                        </button>
+                        <button class="wcm-chip" data-filter="Rosé">
+                            <span class="wcm-chip-icon">🍷</span> Rosé
+                        </button>
+                        <button class="wcm-chip" data-filter="Espumantes">
+                            <span class="wcm-chip-icon">✨</span> Espumantes
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Modal Content (Scrollable) -->
+                <div class="wcm-modal-content">
+                    
+                    <!-- Initial View (Recents, Popular, Featured) -->
+                    <div id="wcm-initial-view">
+                        <!-- Búsquedas recientes -->
+                        <div class="wcm-section" id="wcm-recent-searches-section" style="display: none;">
+                            <div class="wcm-section-header">
+                                <span class="wcm-section-title">🕒 Búsquedas recientes</span>
+                                <button id="wcm-clear-recent">🗑️ Limpiar</button>
+                            </div>
+                            <div class="wcm-tags-container" id="wcm-recent-tags"></div>
+                        </div>
+
+                        <!-- Búsquedas populares -->
+                        <div class="wcm-section">
+                            <div class="wcm-section-header">
+                                <span class="wcm-section-title">📈 Búsquedas populares</span>
+                            </div>
+                            <div class="wcm-tags-container">
+                                <button class="wcm-tag" data-query="malbec">malbec</button>
+                                <button class="wcm-tag" data-query="cabernet">cabernet</button>
+                                <button class="wcm-tag" data-query="vinos tintos">vinos tintos</button>
+                                <button class="wcm-tag" data-query="ofertas">ofertas</button>
+                                <button class="wcm-tag" data-query="espumantes">espumantes</button>
+                            </div>
+                        </div>
+
+                        <!-- Productos destacados -->
+                        <div class="wcm-section" style="display:none;">
+                            <div class="wcm-section-header">
+                                <span class="wcm-section-title">✨ Productos destacados</span>
+                            </div>
+                            <div class="wcm-results-grid" id="wcm-featured-results">
+                                <!-- Destacados se cargan por JS/AJAX inicial o hardcodeados temporalmente -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Search Results View -->
+                    <div id="wcm-results-view" style="display: none;">
+                        <div class="wcm-results-header">
+                            <span id="wcm-results-count">0 resultados</span>
+                            <a href="#" id="wcm-view-all-link" style="display:none;">Ver todos →</a>
+                        </div>
+                        <div class="wcm-results-grid" id="wcm-search-results">
+                            <!-- Resultados inyectados por JS -->
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        <?php
+    } else {
+        // --- MODO CLÁSICO (DROPDOWN) ---
+        ?>
+        <div id="wcm-search-container">
+            <div id="wcm-search-wrapper">
+                <form action="/" method="get" role="search" id="wcm-header-form" onsubmit="return false;">
+                    <input
+                        type="search"
+                        id="wcm-header-input"
+                        name="s"
+                        placeholder="Buscar vinos, categorías, ofertas..."
+                        autocomplete="off"
+                        aria-label="Buscar productos"
+                    >
+                </form>
+                <div id="wcm-autocomplete-results" style="display: none;"></div>
+            </div>
+        </div>
+        <?php
+    }
     ?>
-    <!-- Trigger Button (Sticky Header or similar) -->
-    <div id="wcm-header-bar">
-        <div id="wcm-header-inner">
-            <span id="wcm-logo">🔍</span>
-            <div id="wcm-header-trigger">
-                <span class="wcm-search-placeholder">Buscar vinos, categorías, ofertas...</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Lightbox Modal -->
-    <div id="wcm-lightbox-overlay" style="display: none;">
-        <div id="wcm-lightbox-modal">
-            
-            <!-- Modal Header -->
-            <div class="wcm-modal-header">
-                <div class="wcm-search-input-wrapper">
-                    <span class="wcm-search-icon">🔍</span>
-                    <form action="/" method="get" role="search" id="wcm-header-form" onsubmit="return false;">
-                        <input
-                            type="search"
-                            id="wcm-header-input"
-                            name="s"
-                            placeholder="Buscar vinos, categorías, ofertas..."
-                            autocomplete="off"
-                            aria-label="Buscar productos"
-                        >
-                    </form>
-                    <button id="wcm-modal-close">Cerrar</button>
-                </div>
-                
-                <!-- Chips (Filtros Rápidos) -->
-                <div class="wcm-chips-container">
-                    <button class="wcm-chip active" data-filter="">
-                        <span class="wcm-chip-icon">🍷</span> Todos
-                    </button>
-                    <button class="wcm-chip" data-filter="Tintos">
-                        <span class="wcm-chip-icon">🍷</span> Tintos
-                    </button>
-                    <button class="wcm-chip" data-filter="Blancos">
-                        <span class="wcm-chip-icon">🍷</span> Blancos
-                    </button>
-                    <button class="wcm-chip" data-filter="Rosé">
-                        <span class="wcm-chip-icon">🍷</span> Rosé
-                    </button>
-                    <button class="wcm-chip" data-filter="Espumantes">
-                        <span class="wcm-chip-icon">✨</span> Espumantes
-                    </button>
-                </div>
-            </div>
-
-            <!-- Modal Content (Scrollable) -->
-            <div class="wcm-modal-content">
-                
-                <!-- Initial View (Recents, Popular, Featured) -->
-                <div id="wcm-initial-view">
-                    <!-- Búsquedas recientes -->
-                    <div class="wcm-section" id="wcm-recent-searches-section" style="display: none;">
-                        <div class="wcm-section-header">
-                            <span class="wcm-section-title">🕒 Búsquedas recientes</span>
-                            <button id="wcm-clear-recent">🗑️ Limpiar</button>
-                        </div>
-                        <div class="wcm-tags-container" id="wcm-recent-tags"></div>
-                    </div>
-
-                    <!-- Búsquedas populares -->
-                    <div class="wcm-section">
-                        <div class="wcm-section-header">
-                            <span class="wcm-section-title">📈 Búsquedas populares</span>
-                        </div>
-                        <div class="wcm-tags-container">
-                            <button class="wcm-tag" data-query="malbec">malbec</button>
-                            <button class="wcm-tag" data-query="cabernet">cabernet</button>
-                            <button class="wcm-tag" data-query="vinos tintos">vinos tintos</button>
-                            <button class="wcm-tag" data-query="ofertas">ofertas</button>
-                            <button class="wcm-tag" data-query="espumantes">espumantes</button>
-                        </div>
-                    </div>
-
-                    <!-- Productos destacados -->
-                    <div class="wcm-section">
-                        <div class="wcm-section-header">
-                            <span class="wcm-section-title">✨ Productos destacados</span>
-                        </div>
-                        <div class="wcm-results-grid" id="wcm-featured-results">
-                            <!-- Destacados se cargan por JS/AJAX inicial o hardcodeados temporalmente -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Search Results View -->
-                <div id="wcm-results-view" style="display: none;">
-                    <div class="wcm-results-header">
-                        <span id="wcm-results-count">0 resultados</span>
-                        <a href="#" id="wcm-view-all-link">Ver todos →</a>
-                    </div>
-                    <div class="wcm-results-grid" id="wcm-search-results">
-                        <!-- Resultados inyectados por JS -->
-                    </div>
-                </div>
-
-            </div>
-            
-            <!-- Modal Footer (Keyboard Nav Hints) -->
-            <div class="wcm-modal-footer">
-                <span class="wcm-key-hint"><kbd>↑</kbd> <kbd>↓</kbd> navegar</span>
-                <span class="wcm-key-hint"><kbd>↵</kbd> seleccionar</span>
-                <span class="wcm-key-hint"><kbd>esc</kbd> cerrar</span>
-            </div>
-        </div>
-    </div>
 
     <!-- Estilos del Lightbox -->
     <style>
