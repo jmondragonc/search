@@ -70,7 +70,8 @@ $limit = isset( $_GET['limit'] ) ? min( (int) $_GET['limit'], 100 ) : 8;
 $options = [ 'limit' => $limit ];
 
 if ( ! empty( $cat ) ) {
-    $options['filter'] = [ "categories = '{$cat}'" ]; // Assuming exact category name match
+    $safe_cat = str_replace( "'", "\\'", $cat );
+    $options['filter'] = [ "categories = '{$safe_cat}'" ]; // Exact category name match
 }
 
 // If query is empty but we have a category, we search for "" (all docs matching the filter)

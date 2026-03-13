@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WCM_VERSION',     '1.0.9' );
+define( 'WCM_VERSION',     '1.1.0' );
 define( 'WCM_PLUGIN_FILE', __FILE__ );
 define( 'WCM_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'WCM_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -108,18 +108,32 @@ function wcm_render_header_searchbar(): void {
                         <button class="wcm-chip active" data-filter="">
                             <span class="wcm-chip-icon">🍷</span> Todos
                         </button>
-                        <button class="wcm-chip" data-filter="Tintos">
-                            <span class="wcm-chip-icon">🍷</span> Tintos
-                        </button>
-                        <button class="wcm-chip" data-filter="Blancos">
-                            <span class="wcm-chip-icon">🍷</span> Blancos
-                        </button>
-                        <button class="wcm-chip" data-filter="Rosé">
-                            <span class="wcm-chip-icon">🍷</span> Rosé
-                        </button>
-                        <button class="wcm-chip" data-filter="Espumantes">
-                            <span class="wcm-chip-icon">✨</span> Espumantes
-                        </button>
+                        <?php
+                        $top_categories = get_terms( [
+                            'taxonomy'   => 'product_cat',
+                            'hide_empty' => true,
+                            'parent'     => 0,
+                            'number'     => 6,
+                            'orderby'    => 'count',
+                            'order'      => 'DESC',
+                        ] );
+
+                        if ( ! is_wp_error( $top_categories ) && ! empty( $top_categories ) ) {
+                            foreach ( $top_categories as $cat ) {
+                                $icon = '🍷';
+                                if ( stripos( $cat->name, 'espumante' ) !== false ) {
+                                    $icon = '✨';
+                                } elseif ( stripos( $cat->name, 'cerveza' ) !== false ) {
+                                    $icon = '🍺';
+                                } elseif ( stripos( $cat->name, 'licor' ) !== false || stripos( $cat->name, 'destilado' ) !== false ) {
+                                    $icon = '🥃';
+                                }
+                                echo '<button class="wcm-chip" data-filter="' . esc_attr( $cat->name ) . '">';
+                                echo '<span class="wcm-chip-icon">' . $icon . '</span> ' . esc_html( $cat->name );
+                                echo '</button>';
+                            }
+                        }
+                        ?>
                     </div>
                 </div>
 
