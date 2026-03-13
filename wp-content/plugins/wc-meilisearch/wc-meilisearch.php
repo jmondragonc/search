@@ -352,11 +352,21 @@ function wcm_render_header_searchbar(): void {
         #wcm-lightbox-overlay.wcm-open {
             opacity: 1;
         }
-        /* Classic Mode: sin backdrop oscuro, el resto igual */
+        /* Classic Mode: sin backdrop, el panel sale abajo del input */
         #wcm-lightbox-overlay.wcm-is-classic {
             background: transparent;
             backdrop-filter: none;
             -webkit-backdrop-filter: none;
+            top: 65px;       /* justo debajo de la barra del header */
+            bottom: auto;    /* no se extiende hasta el fondo */
+            padding-top: 0;
+            overflow: visible;
+        }
+        #wcm-lightbox-overlay.wcm-is-classic #wcm-lightbox-modal {
+            border-radius: 0 0 16px 16px;
+            transform: none !important;  /* sin animación de escala */
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            max-height: 70vh;
         }
 
         /* Lightbox Modal */
