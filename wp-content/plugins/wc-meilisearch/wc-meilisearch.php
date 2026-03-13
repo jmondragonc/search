@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WCM_VERSION',     '1.1.3' );
+define( 'WCM_VERSION',     '1.1.2' );
 define( 'WCM_PLUGIN_FILE', __FILE__ );
 define( 'WCM_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'WCM_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -81,104 +81,139 @@ function wcm_render_header_searchbar(): void {
                 </div>
             </div>
         </div>
-        <?php
-    }
-    
-    $container_class = ( 'yes' === $enable_lb ) ? 'wcm-is-lightbox' : 'wcm-is-classic';
-    ?>
-    <!-- Lightbox Modal (same HTML for both modes) -->
-    <div id="wcm-lightbox-overlay" class="<?php echo esc_attr( $container_class ); ?>" style="display: none;">
-        <div id="wcm-lightbox-modal">
-            
-            <!-- Modal Header -->
-            <div class="wcm-modal-header">
-                <div class="wcm-search-input-wrapper">
-                    <img src="<?php echo esc_url( WCM_PLUGIN_URL . '1f50d.svg' ); ?>" alt="Search" class="wcm-search-icon" width="20" height="20">
-                    <form action="/" method="get" role="search" id="wcm-header-form" onsubmit="return false;">
-                        <input
-                            type="search"
-                            id="wcm-header-input"
-                            name="s"
-                            placeholder="Buscar vinos, categorías, ofertas..."
-                            autocomplete="off"
-                            aria-label="Buscar productos"
-                        >
-                    </form>
-                    <button id="wcm-modal-close">Cerrar</button>
-                </div>
 
-                <!-- Chips (Filtros Rápidos) -->
-                <div class="wcm-chips-container">
-                    <button class="wcm-chip active" data-filter="">
-                        <span class="wcm-chip-icon">🍷</span> Todos
-                    </button>
-                    <?php
-                    $top_categories = get_terms( [
-                        'taxonomy'   => 'product_cat',
-                        'hide_empty' => true,
-                        'parent'     => 0,
-                        'number'     => 6,
-                        'orderby'    => 'count',
-                        'order'      => 'DESC',
-                    ] );
-                    if ( ! is_wp_error( $top_categories ) && ! empty( $top_categories ) ) {
-                        foreach ( $top_categories as $cat ) {
-                            $icon = '🍷';
-                            if ( stripos( $cat->name, 'espumante' ) !== false ) { $icon = '✨'; }
-                            elseif ( stripos( $cat->name, 'cerveza' ) !== false ) { $icon = '🍺'; }
-                            elseif ( stripos( $cat->name, 'licor' ) !== false || stripos( $cat->name, 'destilado' ) !== false ) { $icon = '🥃'; }
-                            echo '<button class="wcm-chip" data-filter="' . esc_attr( $cat->name ) . '">';
-                            echo '<span class="wcm-chip-icon">' . $icon . '</span> ' . esc_html( $cat->name );
-                            echo '</button>';
-                        }
-                    }
-                    ?>
-                </div>
-            </div>
-
-            <!-- Modal Content (Scrollable) -->
-            <div class="wcm-modal-content">
+        <!-- Lightbox Modal -->
+        <div id="wcm-lightbox-overlay" style="display: none;">
+            <div id="wcm-lightbox-modal">
                 
-                <!-- Initial View (Recents, Popular) -->
-                <div id="wcm-initial-view">
-                    <!-- Búsquedas recientes -->
-                    <div class="wcm-section" id="wcm-recent-searches-section" style="display: none;">
-                        <div class="wcm-section-header">
-                            <span class="wcm-section-title">🕒 Búsquedas recientes</span>
-                            <button id="wcm-clear-recent">🗑️ Limpiar</button>
-                        </div>
-                        <div class="wcm-tags-container" id="wcm-recent-tags"></div>
+                <!-- Modal Header -->
+                <div class="wcm-modal-header">
+                    <div class="wcm-search-input-wrapper">
+                        <img src="<?php echo esc_url( WCM_PLUGIN_URL . '1f50d.svg' ); ?>" alt="Search" class="wcm-search-icon" width="20" height="20">
+                        <form action="/" method="get" role="search" id="wcm-header-form" onsubmit="return false;">
+                            <input
+                                type="search"
+                                id="wcm-header-input"
+                                name="s"
+                                placeholder="Buscar vinos, categorías, ofertas..."
+                                autocomplete="off"
+                                aria-label="Buscar productos"
+                            >
+                        </form>
+                        <button id="wcm-modal-close">Cerrar</button>
                     </div>
+                    
+                    <!-- Chips (Filtros Rápidos) -->
+                    <div class="wcm-chips-container">
+                        <button class="wcm-chip active" data-filter="">
+                            <span class="wcm-chip-icon">🍷</span> Todos
+                        </button>
+                        <?php
+                        $top_categories = get_terms( [
+                            'taxonomy'   => 'product_cat',
+                            'hide_empty' => true,
+                            'parent'     => 0,
+                            'number'     => 6,
+                            'orderby'    => 'count',
+                            'order'      => 'DESC',
+                        ] );
 
-                    <!-- Búsquedas populares -->
-                    <div class="wcm-section">
-                        <div class="wcm-section-header">
-                            <span class="wcm-section-title">📈 Búsquedas populares</span>
-                        </div>
-                        <div class="wcm-tags-container">
-                            <button class="wcm-tag" data-query="malbec">malbec</button>
-                            <button class="wcm-tag" data-query="cabernet">cabernet</button>
-                            <button class="wcm-tag" data-query="vinos tintos">vinos tintos</button>
-                            <button class="wcm-tag" data-query="ofertas">ofertas</button>
-                            <button class="wcm-tag" data-query="espumantes">espumantes</button>
-                        </div>
+                        if ( ! is_wp_error( $top_categories ) && ! empty( $top_categories ) ) {
+                            foreach ( $top_categories as $cat ) {
+                                $icon = '🍷';
+                                if ( stripos( $cat->name, 'espumante' ) !== false ) {
+                                    $icon = '✨';
+                                } elseif ( stripos( $cat->name, 'cerveza' ) !== false ) {
+                                    $icon = '🍺';
+                                } elseif ( stripos( $cat->name, 'licor' ) !== false || stripos( $cat->name, 'destilado' ) !== false ) {
+                                    $icon = '🥃';
+                                }
+                                echo '<button class="wcm-chip" data-filter="' . esc_attr( $cat->name ) . '">';
+                                echo '<span class="wcm-chip-icon">' . $icon . '</span> ' . esc_html( $cat->name );
+                                echo '</button>';
+                            }
+                        }
+                        ?>
                     </div>
                 </div>
 
-                <!-- Search Results View -->
-                <div id="wcm-results-view" style="display: none;">
-                    <div class="wcm-results-header">
-                        <span id="wcm-results-count">0 resultados</span>
-                        <a href="#" id="wcm-view-all-link">Ver todos →</a>
-                    </div>
-                    <div class="wcm-results-grid" id="wcm-search-results"></div>
-                </div>
+                <!-- Modal Content (Scrollable) -->
+                <div class="wcm-modal-content">
+                    
+                    <!-- Initial View (Recents, Popular, Featured) -->
+                    <div id="wcm-initial-view">
+                        <!-- Búsquedas recientes -->
+                        <div class="wcm-section" id="wcm-recent-searches-section" style="display: none;">
+                            <div class="wcm-section-header">
+                                <span class="wcm-section-title">🕒 Búsquedas recientes</span>
+                                <button id="wcm-clear-recent">🗑️ Limpiar</button>
+                            </div>
+                            <div class="wcm-tags-container" id="wcm-recent-tags"></div>
+                        </div>
 
+                        <!-- Búsquedas populares -->
+                        <div class="wcm-section">
+                            <div class="wcm-section-header">
+                                <span class="wcm-section-title">📈 Búsquedas populares</span>
+                            </div>
+                            <div class="wcm-tags-container">
+                                <button class="wcm-tag" data-query="malbec">malbec</button>
+                                <button class="wcm-tag" data-query="cabernet">cabernet</button>
+                                <button class="wcm-tag" data-query="vinos tintos">vinos tintos</button>
+                                <button class="wcm-tag" data-query="ofertas">ofertas</button>
+                                <button class="wcm-tag" data-query="espumantes">espumantes</button>
+                            </div>
+                        </div>
+
+                        <!-- Productos destacados -->
+                        <div class="wcm-section" style="display:none;">
+                            <div class="wcm-section-header">
+                                <span class="wcm-section-title">✨ Productos destacados</span>
+                            </div>
+                            <div class="wcm-results-grid" id="wcm-featured-results">
+                                <!-- Destacados se cargan por JS/AJAX inicial o hardcodeados temporalmente -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Search Results View -->
+                    <div id="wcm-results-view" style="display: none;">
+                        <div class="wcm-results-header">
+                            <span id="wcm-results-count">0 resultados</span>
+                            <a href="#" id="wcm-view-all-link">Ver todos →</a>
+                        </div>
+                        <div class="wcm-results-grid" id="wcm-search-results">
+                            <!-- Resultados inyectados por JS -->
+                        </div>
+                    </div>
+
+                </div>
             </div>
         </div>
+        <?php
+    } else {
+        // --- MODO CLÁSICO (DROPDOWN) ---
+        ?>
+        <div id="wcm-search-container">
+            <div id="wcm-search-wrapper">
+                <form action="/" method="get" role="search" id="wcm-header-form" onsubmit="return false;">
+                    <input
+                        type="search"
+                        id="wcm-header-input"
+                        name="s"
+                        placeholder="Buscar vinos, categorías, ofertas..."
+                        autocomplete="off"
+                        aria-label="Buscar productos"
+                    >
+                </form>
+                <div id="wcm-autocomplete-results" style="display: none;"></div>
+            </div>
+        </div>
+        <?php
+    }
+    ?>
 
     <!-- Estilos del Lightbox -->
-
     <style>
         /* Trigger Bar */
         #wcm-header-bar {
@@ -216,15 +251,8 @@ function wcm_render_header_searchbar(): void {
         }
         body { padding-top: 65px !important; }
 
-        /* Classic Mode: same as Lightbox but without the dark backdrop */
-        #wcm-lightbox-overlay.wcm-is-classic {
-            background: transparent;
-            backdrop-filter: none;
-            -webkit-backdrop-filter: none;
-        }
-
-        /* Lightbox Model CSS */
-        #wcm-lightbox-overlay.wcm-is-lightbox {
+        /* Lightbox Overlay */
+        #wcm-lightbox-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0, 0, 0, 0.6);
@@ -238,10 +266,12 @@ function wcm_render_header_searchbar(): void {
             opacity: 0;
             transition: opacity 0.2s ease;
         }
-        #wcm-lightbox-overlay.wcm-is-lightbox.wcm-open {
+        #wcm-lightbox-overlay.wcm-open {
             opacity: 1;
         }
-        #wcm-lightbox-overlay.wcm-is-lightbox #wcm-lightbox-modal {
+
+        /* Lightbox Modal */
+        #wcm-lightbox-modal {
             width: 100%;
             max-width: 680px;
             background: #ffffff;
@@ -255,11 +285,11 @@ function wcm_render_header_searchbar(): void {
             transition: transform 0.2s ease;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
-        #wcm-lightbox-overlay.wcm-is-lightbox.wcm-open #wcm-lightbox-modal {
+        #wcm-lightbox-overlay.wcm-open #wcm-lightbox-modal {
             transform: translateY(0) scale(1);
         }
 
-        /* Common Structure */
+        /* Modal Header */
         .wcm-modal-header {
             padding: 20px 24px 16px 24px;
             border-bottom: 1px solid #f0f0f0;
