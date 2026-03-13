@@ -91,6 +91,7 @@ class MeilisearchClient {
                 'attr_tipo',
                 'attr_varietal',
                 'name_alt',
+                'name_phonetic',
             ] );
 
             $index->updateFilterableAttributes( [
@@ -173,7 +174,18 @@ class MeilisearchClient {
             }
         }
 
-        // --- Layer 4: compound-split THEN first-char-strip on name_alt ---
+        // --- Layer 4: phonetic matching on name_phonetic ---
+        // "jhonny" → metaphone → "JN" → matches "JN" in name_phonetic of Johnnie Walker.
+        // Generic: works for any brand without hardcoding.
+        if ( empty( $data['results'] ) ) {
+            $alt = $this->try_phonetic( $query, $options );
+            if ( $alt !== null ) {
+                $data             = $alt;
+                $data['fallback'] = 'phonetic';
+            }
+        }
+
+        // --- Layer 5: compound-split THEN first-char-strip on name_alt ---
         // "zantajul" → split→("zanta","jul") → strip→("anta","ul") → name_alt.
         // Handles compound words where the first char is also wrong.
         // Uses Meilisearch prefix on the last (short) word, no matchingStrategy tricks.
@@ -184,6 +196,9 @@ class MeilisearchClient {
                 $data['fallback'] = 'compound_strip';
             }
         }
+
+
+
 
         $data['cached'] = false;
 
@@ -268,6 +283,36 @@ class MeilisearchClient {
         );
 
         $result = $this->raw_search( $alt_query, $alt_options );
+
+        return empty( $result['results'] ) ? null : $result;
+    }
+
+    /**
+     * Convert every query word to its metaphone code and search name_phonetic.
+     * "jhonny walker" → "JN WLKR" → finds "Johnnie Walker" (stored as "JN WLKR").
+     * "joni"          → "JN"      → finds "Johnnie Walker".
+     */
+    private function try_phonetic( string $query, array $options ): ?array {
+        $words     = preg_split( '/\s+/u', mb_strtolower( trim( $query ), 'UTF-8' ), -1, PREG_SPLIT_NO_EMPTY ) ?: [];
+        $phonetics = [];
+        foreach ( $words as $word ) {
+            $code = metaphone( $word );
+            if ( $code !== '' ) {
+                $phonetics[] = $code;
+            }
+        }
+
+        $phonetic_query = implode( ' ', $phonetics );
+        if ( $phonetic_query === '' ) {
+            return null;
+        }
+
+        $alt_options = array_merge(
+            $options,
+            [ 'attributesToSearchOn' => [ 'name_phonetic' ] ]
+        );
+
+        $result = $this->raw_search( $phonetic_query, $alt_options );
 
         return empty( $result['results'] ) ? null : $result;
     }

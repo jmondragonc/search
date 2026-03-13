@@ -150,6 +150,7 @@ class ProductIndexer {
             // "Santa Julia" → "anta ulia", so searching "anta ulia" (derived
             // from the typo "zanta julia") still finds the right product.
             'name_alt'     => self::make_name_alt( $name ),
+            'name_phonetic' => self::make_name_phonetic( $name ),
             'sku'          => $product->get_sku(),
             'description'  => wp_strip_all_tags( $product->get_short_description() ?: $product->get_description() ),
             'price'        => (float) $product->get_price(),
@@ -293,6 +294,24 @@ class ProductIndexer {
      * @param  string $name  Raw product name.
      * @return string
      */
+    /**
+     * Build a phonetic representation using metaphone codes.
+     * "Johnnie Walker" → "JN WLKR"
+     * "Santa Julia"    → "SNT JL"
+     * Enables matching "jhonny" / "joni" → "JN" → finds Johnnie Walker.
+     */
+    public static function make_name_phonetic( string $name ): string {
+        $words     = preg_split( '/\s+/u', mb_strtolower( $name, 'UTF-8' ), -1, PREG_SPLIT_NO_EMPTY ) ?: [];
+        $phonetics = [];
+        foreach ( $words as $word ) {
+            $code = metaphone( $word );
+            if ( $code !== '' ) {
+                $phonetics[] = $code;
+            }
+        }
+        return implode( ' ', $phonetics );
+    }
+
     public static function make_name_alt( string $name ): string {
         $lower = mb_strtolower( $name, 'UTF-8' );
         $words = preg_split( '/\s+/u', $lower, -1, PREG_SPLIT_NO_EMPTY ) ?: [];
