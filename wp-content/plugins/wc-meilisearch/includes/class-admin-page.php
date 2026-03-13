@@ -205,7 +205,7 @@ class AdminPage {
     // ---------------------------------------------------------------------------
 
     private function save_settings(): void {
-        $fields = [ 'wcm_meili_host', 'wcm_meili_key', 'wcm_redis_host', 'wcm_redis_port' ];
+        $fields = [ 'wcm_meili_host', 'wcm_meili_key', 'wcm_redis_host', 'wcm_redis_port', 'wcm_enable_lightbox' ];
         foreach ( $fields as $key ) {
             if ( isset( $_POST[ $key ] ) ) {
                 update_option( $key, sanitize_text_field( wp_unslash( $_POST[ $key ] ) ) );
