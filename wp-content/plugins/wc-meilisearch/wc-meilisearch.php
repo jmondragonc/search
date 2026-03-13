@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WCM_VERSION',     '1.1.0' );
+define( 'WCM_VERSION',     '1.1.1' );
 define( 'WCM_PLUGIN_FILE', __FILE__ );
 define( 'WCM_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'WCM_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -89,7 +89,7 @@ function wcm_render_header_searchbar(): void {
                 <!-- Modal Header -->
                 <div class="wcm-modal-header">
                     <div class="wcm-search-input-wrapper">
-                        <span class="wcm-search-icon">🔍</span>
+                        <img src="<?php echo esc_url( WCM_PLUGIN_URL . '1f50d.svg' ); ?>" alt="Search" class="wcm-search-icon" width="20" height="20">
                         <form action="/" method="get" role="search" id="wcm-header-form" onsubmit="return false;">
                             <input
                                 type="search"
