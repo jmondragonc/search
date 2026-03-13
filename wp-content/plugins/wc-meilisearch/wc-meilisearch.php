@@ -75,7 +75,7 @@ function wcm_render_header_searchbar(): void {
         <!-- Trigger Button (Sticky Header or similar) -->
         <div id="wcm-header-bar">
             <div id="wcm-header-inner">
-                <span id="wcm-logo">🔍</span>
+                <img src="<?php echo esc_url( WCM_PLUGIN_URL . '1f50d.svg' ); ?>" alt="Search" id="wcm-logo" width="20" height="20">
                 <div id="wcm-header-trigger">
                     <span class="wcm-search-placeholder">Buscar vinos, categorías, ofertas...</span>
                 </div>
@@ -435,8 +435,14 @@ function wcm_render_header_searchbar(): void {
             border-color: #8b1c31;
         }
         .wcm-tag::before {
-            content: "🔍 ";
-            font-size: 12px;
+            content: "";
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: url('<?php echo esc_url( WCM_PLUGIN_URL . '1f50d.svg' ); ?>') no-repeat center;
+            background-size: contain;
+            margin-right: 4px;
+            vertical-align: middle;
             opacity: 0.6;
         }
 
