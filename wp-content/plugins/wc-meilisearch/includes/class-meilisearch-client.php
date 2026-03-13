@@ -173,6 +173,18 @@ class MeilisearchClient {
             }
         }
 
+        // --- Layer 4: compound-split + first-char-strip on name_alt ---
+        // "zantajlu" → split → "zanta"+"jlu" → strip first chars → "anta"+"lu"
+        // → search name_alt with matchingStrategy:'last' (drops unmatched short tail).
+        // Handles compound words where the first char is also wrong.
+        if ( empty( $data['results'] ) ) {
+            $alt = $this->try_compound_split_then_strip( $query, $options );
+            if ( $alt !== null ) {
+                $data             = $alt;
+                $data['fallback'] = 'compound_strip';
+            }
+        }
+
         $data['cached'] = false;
 
         // --- Cache write (only when we have results) ---
@@ -250,6 +262,54 @@ class MeilisearchClient {
         $result = $this->raw_search( $alt_query, $alt_options );
 
         return empty( $result['results'] ) ? null : $result;
+    }
+
+    /**
+     * Split compound word, strip first char of each part, search name_alt.
+     * Handles: "zantajlu" → split("zanta","jlu") → strip("anta","lu")
+     *          → search name_alt matchingStrategy:last → finds "Santa Julia".
+     * Extends split range to len-3 (vs len-4 elsewhere) to capture short tails.
+     */
+    private function try_compound_split_then_strip( string $query, array $options ): ?array {
+        $words      = preg_split( '/\s+/u', trim( $query ), -1, PREG_SPLIT_NO_EMPTY ) ?: [];
+        $candidates = [];
+
+        foreach ( $words as $word ) {
+            $len = mb_strlen( $word, 'UTF-8' );
+            if ( $len < 7 ) {
+                continue;
+            }
+            for ( $i = 4; $i <= $len - 3; $i++ ) {
+                $left  = mb_substr( $word, 0, $i, 'UTF-8' );
+                $right = mb_substr( $word, $i, null, 'UTF-8' );
+
+                $other_words     = array_filter( $words, fn( $w ) => $w !== $word );
+                $candidate_parts = array_merge( [ $left, $right ], array_values( $other_words ) );
+                $candidates[]    = implode( ' ', $candidate_parts );
+            }
+        }
+
+        if ( empty( $candidates ) ) {
+            return null;
+        }
+
+        $alt_options = array_merge(
+            $options,
+            [
+                'attributesToSearchOn' => [ 'name_alt' ],
+                'matchingStrategy'     => 'last',
+            ]
+        );
+
+        foreach ( $candidates as $candidate ) {
+            $stripped = $this->strip_first_chars( $candidate );
+            $result   = $this->raw_search( $stripped, $alt_options );
+            if ( ! empty( $result['results'] ) ) {
+                return $result;
+            }
+        }
+
+        return null;
     }
 
     /**
