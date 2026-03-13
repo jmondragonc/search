@@ -15,7 +15,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WCM_VERSION',     '1.0.7' );
+define( 'WCM_VERSION',     '1.0.8' );
 define( 'WCM_PLUGIN_FILE', __FILE__ );
 define( 'WCM_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'WCM_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -314,6 +314,8 @@ function wcm_render_header_searchbar(): void {
             font-size: 15px;
             cursor: pointer;
             padding: 4px 8px;
+            align-self: center; /* added to center vertically */
+            margin-top: 2px;
         }
         #wcm-modal-close:hover {
             color: #000;
