@@ -247,6 +247,14 @@ class MeilisearchClient {
      * @return array|null
      */
     private function try_first_char_strip( string $query, array $options ): ?array {
+        // Single compound words (no spaces) are better handled by Layer 4
+        // (compound-split + strip), because stripping a compound word like
+        // "zantajul" → "antajul" produces a single token that typo-matches
+        // unrelated products (e.g. "antamilano" within 2 edits).
+        if ( ! str_contains( $query, ' ' ) ) {
+            return null;
+        }
+
         $alt_query = $this->strip_first_chars( $query );
 
         // Skip if stripping changed nothing (e.g. all single-char words).
