@@ -409,7 +409,7 @@ class MeilisearchClient {
         try {
             $defaults = [
                 'limit'                => 10,
-                'attributesToRetrieve' => [ 'id', 'name', 'price', 'image', 'url', 'categories', 'stock_status' ],
+                'attributesToRetrieve' => [ 'id', 'name', 'price', 'image', 'url', 'categories', 'stock_status', 'in_stock' ],
             ];
 
             $result = $this->meili
@@ -420,6 +420,7 @@ class MeilisearchClient {
                 'results'          => $result->getHits(),
                 'processingTimeMs' => $result->getProcessingTimeMs(),
                 'cached'           => false,
+                'facets'           => $result->getFacetDistribution() ?: [],
             ];
         } catch ( \Throwable $e ) {
             error_log( '[WCMeilisearch] Search error: ' . $e->getMessage() );
