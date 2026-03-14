@@ -44,6 +44,7 @@ $query = get_search_query();
   /* ── Layout: sidebar + content ─────────────────────────────────────── */
   #wcm-search-layout {
     display: flex; gap: 28px; align-items: flex-start;
+    position: relative; /* needed for absolute bottom-boundary sticky */
   }
 
   /* ── Sidebar ───────────────────────────────────────────────────────── */
@@ -59,21 +60,13 @@ $query = get_search_query();
     margin: 0 0 16px; padding-bottom: 12px;
     border-bottom: 1px solid #f0f0f0; text-transform: uppercase; letter-spacing: .5px;
   }
-  .wcm-filter-block { margin-bottom: 20px; }
+  /* ── Filter blocks ─────────────────────────────────────────────────── */
+  .wcm-filter-block { margin-bottom: 14px; }
   .wcm-filter-block:last-child { margin-bottom: 0; }
   .wcm-filter-title {
-    font-size: 13px; font-weight: 600; color: #444;
-    margin: 0 0 10px;
+    font-size: 14px; font-weight: 600; color: #222;
+    margin: 0 0 6px;
   }
-  .wcm-filter-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
-  .wcm-filter-option {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 13px; color: #333; cursor: pointer;
-    padding: 3px 0;
-  }
-  .wcm-filter-option input[type="checkbox"] { accent-color: #8b0000; cursor: pointer; flex-shrink: 0; }
-  .wcm-filter-option span { flex: 1; }
-  .wcm-filter-option em { color: #aaa; font-style: normal; font-size: 12px; }
 
   /* Stock toggle */
   .wcm-filter-toggle-row {
@@ -81,6 +74,47 @@ $query = get_search_query();
     font-size: 13px; color: #333; cursor: pointer; padding: 3px 0;
   }
   .wcm-filter-toggle-row input[type="checkbox"] { accent-color: #8b0000; cursor: pointer; }
+
+  /* ── Dropdown filter ────────────────────────────────────────────────── */
+  .wcm-dd { position: relative; }
+
+  .wcm-dd-trigger {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 9px 12px;
+    border: 1px solid #ccc; border-radius: 4px; background: #fff;
+    font-size: 13px; color: #333; cursor: pointer; text-align: left;
+    transition: border-color .15s;
+  }
+  .wcm-dd-trigger:hover { border-color: #8b0000; }
+  .wcm-dd-trigger.wcm-dd-active { border-color: #8b0000; color: #8b0000; font-weight: 600; }
+  .wcm-dd-arrow {
+    flex-shrink: 0; margin-left: 6px; transition: transform .2s;
+    width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2;
+    overflow: visible;
+  }
+  .wcm-dd.open .wcm-dd-arrow { transform: rotate(180deg); }
+
+  .wcm-dd-panel {
+    display: none; position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+    background: #fff; border: 1px solid #ccc; border-radius: 4px;
+    z-index: 200; box-shadow: 0 4px 12px rgba(0,0,0,.1);
+  }
+  .wcm-dd.open .wcm-dd-panel { display: block; }
+
+  .wcm-dd-search {
+    display: block; width: 100%; padding: 8px 10px; box-sizing: border-box;
+    border: none; border-bottom: 1px solid #eee; outline: none;
+    font-size: 13px; background: #fafafa;
+  }
+  .wcm-dd-list { max-height: 220px; overflow-y: auto; }
+  .wcm-dd-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; font-size: 13px; cursor: pointer; color: #333;
+  }
+  .wcm-dd-item:hover { background: #f5f5f5; }
+  .wcm-dd-item.wcm-dd-selected { font-weight: 700; color: #8b0000; background: #fff8f8; }
+  .wcm-dd-item em { color: #aaa; font-style: normal; font-size: 12px; }
+  .wcm-dd-item-all { color: #666; font-style: italic; }
 
   .wcm-clear-btn {
     display: block; width: 100%; padding: 7px 0; background: transparent;

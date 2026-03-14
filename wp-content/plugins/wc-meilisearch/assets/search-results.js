@@ -30,49 +30,47 @@
     return;
   }
 
-  // ── Filter state ────────────────────────────────────────────────────────────
+  // ── Filter state (single-select per group) ───────────────────────────────────
   const state = {
-    cats:     [],    // string[]
-    pais:     [],
-    region:   [],
-    tipo:     [],
-    varietal: [],
-    marca:    [],
-    volumen:  [],
-    stock:    false, // bool – only in-stock
+    cats:     '',
+    pais:     '',
+    region:   '',
+    tipo:     '',
+    varietal: '',
+    marca:    '',
+    volumen:  '',
+    stock:    false,
   };
 
   // Attribute filter groups config (order matches the main site sidebar)
   const ATTR_GROUPS = [
-    { key: 'cats',     param: 'cats',     facet: 'categories',   label: 'Categorías' },
-    { key: 'pais',     param: 'pais',     facet: 'attr_pais',    label: 'País' },
-    { key: 'tipo',     param: 'tipo',     facet: 'attr_tipo',    label: 'Tipo' },
-    { key: 'varietal', param: 'varietal', facet: 'attr_varietal', label: 'Varietal' },
-    { key: 'region',   param: 'region',   facet: 'attr_region',  label: 'Región' },
-    { key: 'marca',    param: 'marca',    facet: 'attr_marca',   label: 'Marca' },
-    { key: 'volumen',  param: 'volumen',  facet: 'attr_volumen', label: 'Volumen' },
+    { key: 'cats',     param: 'cats',     facet: 'categories',    label: 'Categorías',         all: 'Todas las Categorías' },
+    { key: 'pais',     param: 'pais',     facet: 'attr_pais',     label: 'País',               all: 'Todos los países' },
+    { key: 'tipo',     param: 'tipo',     facet: 'attr_tipo',     label: 'Tipo',               all: 'Todos los tipos' },
+    { key: 'varietal', param: 'varietal', facet: 'attr_varietal', label: 'Varietal',           all: 'Todos los varietales' },
+    { key: 'region',   param: 'region',   facet: 'attr_region',   label: 'Región',             all: 'Todas las regiones' },
+    { key: 'marca',    param: 'marca',    facet: 'attr_marca',    label: 'Marca',              all: 'Todas las marcas' },
+    { key: 'volumen',  param: 'volumen',  facet: 'attr_volumen',  label: 'Volumen',            all: 'Todos los volúmenes' },
   ];
 
-  // Categories that are too broad/internal to show in the sidebar.
+  // Categories too broad/internal to show.
   const SKIP_CATS = new Set(['Vinos.', 'Vinos y Espumantes', 'Al por mayor', 'Wine Collections']);
 
   // ── Fetch ────────────────────────────────────────────────────────────────────
 
-  // Main search URL: applies all active filters.
   function buildUrl() {
     const u = new URL(wcmSearch.ajaxUrl, location.href);
     u.searchParams.set('q',      query);
     u.searchParams.set('limit',  '96');
     u.searchParams.set('facets', '1');
     ATTR_GROUPS.forEach(g => {
-      if (state[g.key].length) u.searchParams.set(g.param, state[g.key].join(','));
+      if (state[g.key]) u.searchParams.set(g.param, state[g.key]);
     });
     if (state.stock) u.searchParams.set('stock', 'true');
     return u.toString();
   }
 
-  // "All facets" URL: limit=1, no attribute filters.
-  // Used to always show the full option list for every filter group (disjunctive facets).
+  // Facets-only URL: no attribute filters → shows full option counts (disjunctive)
   function buildAllFacetsUrl() {
     const u = new URL(wcmSearch.ajaxUrl, location.href);
     u.searchParams.set('q',      query);
@@ -83,16 +81,14 @@
   }
 
   function hasAttrFilters() {
-    return ATTR_GROUPS.some(g => state[g.key].length > 0);
+    return ATTR_GROUPS.some(g => state[g.key] !== '');
   }
 
   function doSearch() {
     if (gridEl) gridEl.classList.add('wcm-loading');
 
-    // When any attribute filter is active, fetch facets without those filters
-    // so all options stay visible (disjunctive / OR facets).
-    const mainFetch       = fetch(buildUrl()).then(r => r.json());
-    const allFacetsFetch  = hasAttrFilters()
+    const mainFetch      = fetch(buildUrl()).then(r => r.json());
+    const allFacetsFetch = hasAttrFilters()
       ? fetch(buildAllFacetsUrl()).then(r => r.json())
       : null;
 
@@ -101,12 +97,8 @@
         const results = data.results || [];
         const facets  = data.facets  || {};
 
-        // Replace all facet groups with the unfiltered version when available,
-        // so every option remains visible regardless of active filters.
         if (allData && allData.facets) {
-          Object.keys(allData.facets).forEach(k => {
-            facets[k] = allData.facets[k];
-          });
+          Object.keys(allData.facets).forEach(k => { facets[k] = allData.facets[k]; });
         }
 
         renderCount(results.length, data.processingTimeMs, data.cached);
@@ -163,6 +155,9 @@
     const stockFacets  = facets.in_stock || {};
     const inStockCount = stockFacets['true'] || 0;
 
+    // SVG chevron arrow
+    const arrow = '<svg class="wcm-dd-arrow" viewBox="0 0 10 6"><polyline points="1,1 5,5 9,1"/></svg>';
+
     let html = '<p class="wcm-sidebar-title">Filtrar por</p>';
 
     // Stock toggle
@@ -175,40 +170,43 @@
         '</label>' +
       '</div>';
 
-    // Attribute filter groups
+    // Dropdown groups
     ATTR_GROUPS.forEach(g => {
       const raw = facets[g.facet] || {};
 
       let entries = Object.entries(raw);
-
-      // Skip internal categories
-      if (g.key === 'cats') {
-        entries = entries.filter(([name]) => !SKIP_CATS.has(name));
-      }
-
-      // Skip empty values (products with no value for this attribute)
-      entries = entries.filter(([name]) => name && name.trim() !== '');
-
-      const sorted = entries.sort((a, b) => b[1] - a[1]).slice(0, 15);
+      if (g.key === 'cats') entries = entries.filter(([n]) => !SKIP_CATS.has(n));
+      entries = entries.filter(([n]) => n && n.trim() !== '');
+      const sorted = entries.sort((a, b) => b[1] - a[1]).slice(0, 30);
       if (!sorted.length) return;
+
+      const selected = state[g.key];
+      const label    = selected ? esc(selected) : esc(g.all);
+      const isActive = selected !== '';
 
       html +=
         '<div class="wcm-filter-block">' +
           '<h3 class="wcm-filter-title">' + esc(g.label) + '</h3>' +
-          '<div class="wcm-filter-list">' +
-            sorted.map(([name, count]) =>
-              '<label class="wcm-filter-option">' +
-                '<input type="checkbox" data-group="' + esc(g.key) + '" data-val="' + esc(name) + '"' +
-                  (state[g.key].includes(name) ? ' checked' : '') + '>' +
-                '<span>' + esc(name) + '</span>' +
-                '<em>(' + count + ')</em>' +
-              '</label>'
-            ).join('') +
+          '<div class="wcm-dd" data-group="' + g.key + '">' +
+            '<button class="wcm-dd-trigger' + (isActive ? ' wcm-dd-active' : '') + '" type="button">' +
+              '<span>' + label + '</span>' + arrow +
+            '</button>' +
+            '<div class="wcm-dd-panel">' +
+              '<input class="wcm-dd-search" type="text" placeholder="Buscar…" autocomplete="off">' +
+              '<div class="wcm-dd-list">' +
+                '<div class="wcm-dd-item wcm-dd-item-all" data-val="">' + esc(g.all) + '</div>' +
+                sorted.map(([name, count]) =>
+                  '<div class="wcm-dd-item' + (name === selected ? ' wcm-dd-selected' : '') + '" data-val="' + esc(name) + '">' +
+                    '<span>' + esc(name) + '</span>' +
+                    '<em>(' + count + ')</em>' +
+                  '</div>'
+                ).join('') +
+              '</div>' +
+            '</div>' +
           '</div>' +
         '</div>';
     });
 
-    // Clear all button
     if (hasActiveFilters()) {
       html += '<button id="wcm-clear-all" class="wcm-clear-btn">Limpiar todos los filtros</button>';
     }
@@ -218,7 +216,7 @@
   }
 
   function bindSidebarEvents() {
-    // Stock
+    // Stock toggle
     const stockToggle = document.getElementById('wcm-stock-toggle');
     if (stockToggle) {
       stockToggle.addEventListener('change', function () {
@@ -227,59 +225,86 @@
       });
     }
 
-    // All attribute checkboxes
-    sidebarEl.querySelectorAll('input[data-group]').forEach(cb => {
-      cb.addEventListener('change', function () {
-        const group = this.dataset.group;
-        const val   = this.dataset.val;
-        if (this.checked) {
-          if (!state[group].includes(val)) state[group].push(val);
-        } else {
-          state[group] = state[group].filter(v => v !== val);
+    // Dropdown triggers: open/close panel
+    sidebarEl.querySelectorAll('.wcm-dd').forEach(dd => {
+      const trigger = dd.querySelector('.wcm-dd-trigger');
+      const panel   = dd.querySelector('.wcm-dd-panel');
+      const search  = dd.querySelector('.wcm-dd-search');
+      const list    = dd.querySelector('.wcm-dd-list');
+      const group   = dd.dataset.group;
+
+      trigger.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const isOpen = dd.classList.contains('open');
+        // Close all other dropdowns
+        sidebarEl.querySelectorAll('.wcm-dd.open').forEach(o => o.classList.remove('open'));
+        if (!isOpen) {
+          dd.classList.add('open');
+          search.value = '';
+          list.querySelectorAll('.wcm-dd-item').forEach(item => { item.style.display = ''; });
+          search.focus();
         }
+      });
+
+      // Search input filters the list
+      search.addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        list.querySelectorAll('.wcm-dd-item').forEach(item => {
+          if (item.classList.contains('wcm-dd-item-all')) { item.style.display = ''; return; }
+          item.style.display = item.dataset.val.toLowerCase().includes(q) ? '' : 'none';
+        });
+      });
+
+      // Option click
+      list.addEventListener('click', function (e) {
+        const item = e.target.closest('.wcm-dd-item');
+        if (!item) return;
+        state[group] = item.dataset.val; // '' = clear
+        dd.classList.remove('open');
         doSearch();
       });
     });
+
+    // Click outside closes all dropdowns
+    document.addEventListener('click', closeAllDropdowns);
 
     // Clear all
     const clearBtn = document.getElementById('wcm-clear-all');
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
-        ATTR_GROUPS.forEach(g => { state[g.key] = []; });
+        ATTR_GROUPS.forEach(g => { state[g.key] = ''; });
         state.stock = false;
         doSearch();
       });
     }
   }
 
-  // ── Active filter chips (above grid) ────────────────────────────────────────
+  function closeAllDropdowns() {
+    if (sidebarEl) sidebarEl.querySelectorAll('.wcm-dd.open').forEach(d => d.classList.remove('open'));
+  }
+
+  // ── Active filter chips ──────────────────────────────────────────────────────
   function renderActiveChips() {
     if (!chipsEl) return;
-
     const chips = [];
     ATTR_GROUPS.forEach(g => {
-      state[g.key].forEach(val => {
+      if (state[g.key]) {
         chips.push(
-          '<span class="wcm-active-chip" data-group="' + esc(g.key) + '" data-val="' + esc(val) + '">' +
-            esc(val) + ' ×' +
+          '<span class="wcm-active-chip" data-group="' + esc(g.key) + '">' +
+            esc(state[g.key]) + ' ×' +
           '</span>'
         );
-      });
+      }
     });
     if (state.stock) {
       chips.push('<span class="wcm-active-chip" data-group="stock">Con stock ×</span>');
     }
-
     chipsEl.innerHTML = chips.join('');
     chipsEl.querySelectorAll('.wcm-active-chip').forEach(chip => {
       chip.addEventListener('click', function () {
         const group = this.dataset.group;
-        const val   = this.dataset.val;
-        if (group === 'stock') {
-          state.stock = false;
-        } else {
-          state[group] = state[group].filter(v => v !== val);
-        }
+        if (group === 'stock') state.stock = false;
+        else state[group] = '';
         doSearch();
       });
     });
