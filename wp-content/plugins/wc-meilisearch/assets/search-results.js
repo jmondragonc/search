@@ -39,6 +39,8 @@
   };
 
   // ── Fetch ────────────────────────────────────────────────────────────────────
+
+  // Main search URL: applies all active filters.
   function buildUrl() {
     const u = new URL(wcmSearch.ajaxUrl, location.href);
     u.searchParams.set('q',      query);
@@ -51,16 +53,44 @@
     return u.toString();
   }
 
+  // Category-facets URL: same filters EXCEPT categories.
+  // Used to always show the full category list (disjunctive facets),
+  // so the user can keep adding categories even after selecting one.
+  function buildCatFacetsUrl() {
+    const u = new URL(wcmSearch.ajaxUrl, location.href);
+    u.searchParams.set('q',      query);
+    u.searchParams.set('limit',  '1');   // only need facets, not results
+    u.searchParams.set('facets', '1');
+    if (state.stock)              u.searchParams.set('stock',     'true');
+    if (state.price_min !== null) u.searchParams.set('price_min', state.price_min);
+    if (state.price_max !== null) u.searchParams.set('price_max', state.price_max);
+    // no cats → returns all categories available for this query
+    return u.toString();
+  }
+
   function doSearch() {
     if (gridEl) gridEl.classList.add('wcm-loading');
 
-    fetch(buildUrl())
-      .then(r => r.json())
-      .then(data => {
+    // When categories are selected, fetch category facets without that filter
+    // so the full category list remains visible (disjunctive / OR facets).
+    const mainFetch    = fetch(buildUrl()).then(r => r.json());
+    const catFacetsFetch = state.cats.length > 0
+      ? fetch(buildCatFacetsUrl()).then(r => r.json())
+      : null;
+
+    Promise.all([mainFetch, catFacetsFetch || Promise.resolve(null)])
+      .then(([data, catData]) => {
         const results = data.results || [];
+        const facets  = data.facets  || {};
+
+        // Replace category facets with the disjunctive version when available
+        if (catData && catData.facets && catData.facets.categories) {
+          facets.categories = catData.facets.categories;
+        }
+
         renderCount(results.length, data.processingTimeMs, data.cached);
         renderGrid(results);
-        renderSidebar(data.facets || {}, results);
+        renderSidebar(facets, results);
         renderActiveChips();
         if (gridEl) gridEl.classList.remove('wcm-loading');
       })
