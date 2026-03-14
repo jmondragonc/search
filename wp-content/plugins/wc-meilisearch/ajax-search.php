@@ -8,6 +8,12 @@
  *   q          – search query (min 2 chars)
  *   cat        – single category filter (legacy, kept for autocomplete chips)
  *   cats       – comma-separated categories (OR logic, used by results page)
+ *   pais       – comma-separated países (OR logic)
+ *   region     – comma-separated regiones (OR logic)
+ *   tipo       – comma-separated tipos (OR logic)
+ *   varietal   – comma-separated varietales (OR logic)
+ *   marca      – comma-separated marcas (OR logic)
+ *   volumen    – comma-separated volúmenes (OR logic)
  *   price_min  – minimum price filter
  *   price_max  – maximum price filter
  *   stock      – "true" to return only in-stock products
@@ -45,7 +51,13 @@ if ( ! class_exists( '\WCMeilisearch\MeilisearchClient' ) ) {
 // ---------------------------------------------------------------------------
 $query     = isset( $_GET['q'] )   && is_string( $_GET['q'] )   ? trim( sanitize_text_field( wp_unslash( $_GET['q'] ) ) )   : '';
 $cat       = isset( $_GET['cat'] ) && is_string( $_GET['cat'] ) ? trim( sanitize_text_field( wp_unslash( $_GET['cat'] ) ) ) : '';
-$cats_raw  = isset( $_GET['cats'] ) && is_string( $_GET['cats'] ) ? sanitize_text_field( wp_unslash( $_GET['cats'] ) ) : '';
+$cats_raw  = isset( $_GET['cats'] )     && is_string( $_GET['cats'] )     ? sanitize_text_field( wp_unslash( $_GET['cats'] ) )     : '';
+$pais_raw  = isset( $_GET['pais'] )     && is_string( $_GET['pais'] )     ? sanitize_text_field( wp_unslash( $_GET['pais'] ) )     : '';
+$region_raw    = isset( $_GET['region'] )   && is_string( $_GET['region'] )   ? sanitize_text_field( wp_unslash( $_GET['region'] ) )   : '';
+$tipo_raw      = isset( $_GET['tipo'] )     && is_string( $_GET['tipo'] )     ? sanitize_text_field( wp_unslash( $_GET['tipo'] ) )     : '';
+$varietal_raw  = isset( $_GET['varietal'] ) && is_string( $_GET['varietal'] ) ? sanitize_text_field( wp_unslash( $_GET['varietal'] ) ) : '';
+$marca_raw     = isset( $_GET['marca'] )    && is_string( $_GET['marca'] )    ? sanitize_text_field( wp_unslash( $_GET['marca'] ) )    : '';
+$volumen_raw   = isset( $_GET['volumen'] )  && is_string( $_GET['volumen'] )  ? sanitize_text_field( wp_unslash( $_GET['volumen'] ) )  : '';
 $price_min = isset( $_GET['price_min'] ) && is_numeric( $_GET['price_min'] ) ? (float) $_GET['price_min'] : null;
 $price_max = isset( $_GET['price_max'] ) && is_numeric( $_GET['price_max'] ) ? (float) $_GET['price_max'] : null;
 $stock     = isset( $_GET['stock'] ) && $_GET['stock'] === 'true';
@@ -92,6 +104,27 @@ if ( ! empty( $cats_raw ) ) {
     }
 }
 
+// Attribute filters (OR logic within each group, AND between groups).
+foreach ( [
+    'attr_pais'     => $pais_raw,
+    'attr_region'   => $region_raw,
+    'attr_tipo'     => $tipo_raw,
+    'attr_varietal' => $varietal_raw,
+    'attr_marca'    => $marca_raw,
+    'attr_volumen'  => $volumen_raw,
+] as $field => $raw ) {
+    if ( ! empty( $raw ) ) {
+        $vals = array_filter( array_map( 'trim', explode( ',', $raw ) ) );
+        if ( ! empty( $vals ) ) {
+            $conds = array_map(
+                fn( $v ) => "{$field} = '" . str_replace( "'", "\\'", $v ) . "'",
+                $vals
+            );
+            $filter_parts[] = '(' . implode( ' OR ', $conds ) . ')';
+        }
+    }
+}
+
 if ( $price_min !== null ) $filter_parts[] = "price >= {$price_min}";
 if ( $price_max !== null ) $filter_parts[] = "price <= {$price_max}";
 if ( $stock )              $filter_parts[] = 'in_stock = true';
@@ -107,7 +140,7 @@ if ( ! empty( $filter_parts ) ) {
 }
 
 if ( $with_facets ) {
-    $options['facets'] = [ 'categories', 'attr_tipo', 'attr_pais', 'in_stock' ];
+    $options['facets'] = [ 'categories', 'attr_pais', 'attr_region', 'attr_tipo', 'attr_varietal', 'attr_marca', 'attr_volumen', 'in_stock' ];
 }
 
 $result = \WCMeilisearch\MeilisearchClient::instance()->search( $query, $options );

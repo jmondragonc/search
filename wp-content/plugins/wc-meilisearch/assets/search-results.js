@@ -32,9 +32,29 @@
 
   // ── Filter state ────────────────────────────────────────────────────────────
   const state = {
-    cats:  [],    // string[]
-    stock: false, // bool – only in-stock
+    cats:     [],    // string[]
+    pais:     [],
+    region:   [],
+    tipo:     [],
+    varietal: [],
+    marca:    [],
+    volumen:  [],
+    stock:    false, // bool – only in-stock
   };
+
+  // Attribute filter groups config (order matches the main site sidebar)
+  const ATTR_GROUPS = [
+    { key: 'cats',     param: 'cats',     facet: 'categories',   label: 'Categorías' },
+    { key: 'pais',     param: 'pais',     facet: 'attr_pais',    label: 'País' },
+    { key: 'tipo',     param: 'tipo',     facet: 'attr_tipo',    label: 'Tipo' },
+    { key: 'varietal', param: 'varietal', facet: 'attr_varietal', label: 'Varietal' },
+    { key: 'region',   param: 'region',   facet: 'attr_region',  label: 'Región' },
+    { key: 'marca',    param: 'marca',    facet: 'attr_marca',   label: 'Marca' },
+    { key: 'volumen',  param: 'volumen',  facet: 'attr_volumen', label: 'Volumen' },
+  ];
+
+  // Categories that are too broad/internal to show in the sidebar.
+  const SKIP_CATS = new Set(['Vinos.', 'Vinos y Espumantes', 'Al por mayor', 'Wine Collections']);
 
   // ── Fetch ────────────────────────────────────────────────────────────────────
 
@@ -44,47 +64,54 @@
     u.searchParams.set('q',      query);
     u.searchParams.set('limit',  '96');
     u.searchParams.set('facets', '1');
-    if (state.cats.length) u.searchParams.set('cats',  state.cats.join(','));
-    if (state.stock)       u.searchParams.set('stock', 'true');
+    ATTR_GROUPS.forEach(g => {
+      if (state[g.key].length) u.searchParams.set(g.param, state[g.key].join(','));
+    });
+    if (state.stock) u.searchParams.set('stock', 'true');
     return u.toString();
   }
 
-  // Category-facets URL: same filters EXCEPT categories.
-  // Used to always show the full category list (disjunctive facets),
-  // so the user can keep adding categories even after selecting one.
-  function buildCatFacetsUrl() {
+  // "All facets" URL: limit=1, no attribute filters.
+  // Used to always show the full option list for every filter group (disjunctive facets).
+  function buildAllFacetsUrl() {
     const u = new URL(wcmSearch.ajaxUrl, location.href);
     u.searchParams.set('q',      query);
-    u.searchParams.set('limit',  '1');   // only need facets, not results
+    u.searchParams.set('limit',  '1');
     u.searchParams.set('facets', '1');
     if (state.stock) u.searchParams.set('stock', 'true');
-    // no cats → returns all categories available for this query
     return u.toString();
+  }
+
+  function hasAttrFilters() {
+    return ATTR_GROUPS.some(g => state[g.key].length > 0);
   }
 
   function doSearch() {
     if (gridEl) gridEl.classList.add('wcm-loading');
 
-    // When categories are selected, fetch category facets without that filter
-    // so the full category list remains visible (disjunctive / OR facets).
-    const mainFetch    = fetch(buildUrl()).then(r => r.json());
-    const catFacetsFetch = state.cats.length > 0
-      ? fetch(buildCatFacetsUrl()).then(r => r.json())
+    // When any attribute filter is active, fetch facets without those filters
+    // so all options stay visible (disjunctive / OR facets).
+    const mainFetch       = fetch(buildUrl()).then(r => r.json());
+    const allFacetsFetch  = hasAttrFilters()
+      ? fetch(buildAllFacetsUrl()).then(r => r.json())
       : null;
 
-    Promise.all([mainFetch, catFacetsFetch || Promise.resolve(null)])
-      .then(([data, catData]) => {
+    Promise.all([mainFetch, allFacetsFetch || Promise.resolve(null)])
+      .then(([data, allData]) => {
         const results = data.results || [];
         const facets  = data.facets  || {};
 
-        // Replace category facets with the disjunctive version when available
-        if (catData && catData.facets && catData.facets.categories) {
-          facets.categories = catData.facets.categories;
+        // Replace all facet groups with the unfiltered version when available,
+        // so every option remains visible regardless of active filters.
+        if (allData && allData.facets) {
+          Object.keys(allData.facets).forEach(k => {
+            facets[k] = allData.facets[k];
+          });
         }
 
         renderCount(results.length, data.processingTimeMs, data.cached);
         renderGrid(results);
-        renderSidebar(facets, results);
+        renderSidebar(facets);
         renderActiveChips();
         if (gridEl) gridEl.classList.remove('wcm-loading');
       })
@@ -130,53 +157,63 @@
   }
 
   // ── Sidebar ──────────────────────────────────────────────────────────────────
-  function renderSidebar(facets, results) {
+  function renderSidebar(facets) {
     if (!sidebarEl) return;
 
-    const catFacets   = facets.categories || {};
-    const stockFacets = facets.in_stock   || {};
+    const stockFacets  = facets.in_stock || {};
+    const inStockCount = stockFacets['true'] || 0;
 
-    // Sort categories by count, skip very broad/internal ones
-    const SKIP_CATS = new Set(['Vinos.', 'Vinos y Espumantes', 'Al por mayor', 'Wine Collections']);
-    const sortedCats = Object.entries(catFacets)
-      .filter(([name]) => !SKIP_CATS.has(name))
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 15);
+    let html = '<p class="wcm-sidebar-title">Filtrar por</p>';
 
-    const inStockCount = stockFacets['true']  || 0;
-    const hasFilters   = hasActiveFilters();
-
-    sidebarEl.innerHTML =
-      '<p class="wcm-sidebar-title">Filtrar por</p>' +
-
-      // Stock
+    // Stock toggle
+    html +=
       '<div class="wcm-filter-block">' +
         '<h3 class="wcm-filter-title">Disponibilidad</h3>' +
         '<label class="wcm-filter-toggle-row">' +
           '<input type="checkbox" id="wcm-stock-toggle"' + (state.stock ? ' checked' : '') + '>' +
           '<span>Solo con stock (' + inStockCount + ')</span>' +
         '</label>' +
-      '</div>' +
+      '</div>';
 
-      // Categories
-      (sortedCats.length ? (
+    // Attribute filter groups
+    ATTR_GROUPS.forEach(g => {
+      const raw = facets[g.facet] || {};
+
+      let entries = Object.entries(raw);
+
+      // Skip internal categories
+      if (g.key === 'cats') {
+        entries = entries.filter(([name]) => !SKIP_CATS.has(name));
+      }
+
+      // Skip empty values (products with no value for this attribute)
+      entries = entries.filter(([name]) => name && name.trim() !== '');
+
+      const sorted = entries.sort((a, b) => b[1] - a[1]).slice(0, 15);
+      if (!sorted.length) return;
+
+      html +=
         '<div class="wcm-filter-block">' +
-          '<h3 class="wcm-filter-title">Categorías</h3>' +
+          '<h3 class="wcm-filter-title">' + esc(g.label) + '</h3>' +
           '<div class="wcm-filter-list">' +
-            sortedCats.map(([name, count]) =>
+            sorted.map(([name, count]) =>
               '<label class="wcm-filter-option">' +
-                '<input type="checkbox" data-cat="' + esc(name) + '"' + (state.cats.includes(name) ? ' checked' : '') + '>' +
+                '<input type="checkbox" data-group="' + esc(g.key) + '" data-val="' + esc(name) + '"' +
+                  (state[g.key].includes(name) ? ' checked' : '') + '>' +
                 '<span>' + esc(name) + '</span>' +
                 '<em>(' + count + ')</em>' +
               '</label>'
             ).join('') +
           '</div>' +
-        '</div>'
-      ) : '') +
+        '</div>';
+    });
 
-      // Clear all
-      (hasFilters ? '<button id="wcm-clear-all" class="wcm-clear-btn">Limpiar todos los filtros</button>' : '');
+    // Clear all button
+    if (hasActiveFilters()) {
+      html += '<button id="wcm-clear-all" class="wcm-clear-btn">Limpiar todos los filtros</button>';
+    }
 
+    sidebarEl.innerHTML = html;
     bindSidebarEvents();
   }
 
@@ -190,14 +227,15 @@
       });
     }
 
-    // Categories
-    sidebarEl.querySelectorAll('input[data-cat]').forEach(cb => {
+    // All attribute checkboxes
+    sidebarEl.querySelectorAll('input[data-group]').forEach(cb => {
       cb.addEventListener('change', function () {
-        const cat = this.dataset.cat;
+        const group = this.dataset.group;
+        const val   = this.dataset.val;
         if (this.checked) {
-          if (!state.cats.includes(cat)) state.cats.push(cat);
+          if (!state[group].includes(val)) state[group].push(val);
         } else {
-          state.cats = state.cats.filter(c => c !== cat);
+          state[group] = state[group].filter(v => v !== val);
         }
         doSearch();
       });
@@ -207,7 +245,7 @@
     const clearBtn = document.getElementById('wcm-clear-all');
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
-        state.cats  = [];
+        ATTR_GROUPS.forEach(g => { state[g.key] = []; });
         state.stock = false;
         doSearch();
       });
@@ -219,19 +257,29 @@
     if (!chipsEl) return;
 
     const chips = [];
-    state.cats.forEach(cat => {
-      chips.push('<span class="wcm-active-chip" data-type="cat" data-val="' + esc(cat) + '">' + esc(cat) + ' ×</span>');
+    ATTR_GROUPS.forEach(g => {
+      state[g.key].forEach(val => {
+        chips.push(
+          '<span class="wcm-active-chip" data-group="' + esc(g.key) + '" data-val="' + esc(val) + '">' +
+            esc(val) + ' ×' +
+          '</span>'
+        );
+      });
     });
     if (state.stock) {
-      chips.push('<span class="wcm-active-chip" data-type="stock">Con stock ×</span>');
+      chips.push('<span class="wcm-active-chip" data-group="stock">Con stock ×</span>');
     }
 
     chipsEl.innerHTML = chips.join('');
     chipsEl.querySelectorAll('.wcm-active-chip').forEach(chip => {
       chip.addEventListener('click', function () {
-        const type = this.dataset.type;
-        if (type === 'cat')   state.cats  = state.cats.filter(c => c !== this.dataset.val);
-        if (type === 'stock') state.stock = false;
+        const group = this.dataset.group;
+        const val   = this.dataset.val;
+        if (group === 'stock') {
+          state.stock = false;
+        } else {
+          state[group] = state[group].filter(v => v !== val);
+        }
         doSearch();
       });
     });
@@ -251,7 +299,7 @@
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   function hasActiveFilters() {
-    return state.cats.length > 0 || state.stock || state.price_min !== null || state.price_max !== null;
+    return hasAttrFilters() || state.stock;
   }
 
   function esc(str) {
