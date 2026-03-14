@@ -51,6 +51,8 @@ $query = get_search_query();
     width: 240px; flex-shrink: 0;
     background: #fff; border: 1px solid #e8e8e8;
     border-radius: 10px; padding: 20px;
+    position: sticky; top: 24px;
+    align-self: flex-start;
   }
   .wcm-sidebar-title {
     font-size: 14px; font-weight: 700; color: #222;
