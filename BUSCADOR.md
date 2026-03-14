@@ -5,6 +5,78 @@
 
 ---
 
+## 0. Estado del Proyecto — Alcance y Checklist
+
+### ✅ Completado
+
+- [x] Instalación y configuración de Meilisearch en servidor demo (`search.bttr.pe`)
+- [x] Plugin WordPress custom (`wc-meilisearch`) con autoloader Composer
+- [x] Sincronización automática bidireccional con WooCommerce (crear / editar / eliminar productos)
+- [x] Indexación masiva inicial con barra de progreso (batches de 50 productos)
+- [x] Búsqueda por nombre, SKU, categorías, tags y atributos (marca, país, región, tipo, varietal)
+- [x] Tolerancia a errores tipográficos: hasta 2 errores por palabra (configurado en Meilisearch)
+- [x] Búsqueda sin espacios / concatenada — `"santajulia"` → Santa Julia (Capa 2)
+- [x] Búsqueda con primer carácter incorrecto — `"zanta julia"` → Santa Julia (Capa 3)
+- [x] Búsqueda fonética — `"jhonny"` / `"joni"` → Johnnie Walker (Capa 4, metaphone)
+- [x] Búsqueda compuesta + primer carácter incorrecto — `"zantajul"` → Santa Julia (Capa 5)
+- [x] Ranking por relevancia: exacto > parcial > typo + vinos/licores antes que accesorios
+- [x] Caché con Redis (TTL 5 minutos, degradación silenciosa si Redis no disponible)
+- [x] Endpoint AJAX propio con rate limiting y sanitización de inputs
+- [x] Componente visual de autocompletado (dropdown responsivo, imagen, precio, stock)
+- [x] Modal lightbox + modo clásico sin backdrop (configurable desde WP Admin)
+- [x] Chips de categorías dinámicas en el modal (cargadas desde WooCommerce)
+- [x] Filtro por categoría desde las chips (pasa `cat=` al endpoint AJAX)
+- [x] Página de resultados completos (`?s=query`)
+- [x] Panel de administración: configuración de conexión, estado, reindexar
+- [x] Adaptación móvil: altura del dropdown ajustada con `visualViewport` (teclado del móvil)
+- [x] Documentación técnica completa (`BUSCADOR.md`)
+
+**Extras implementados fuera del alcance original** (sin costo adicional):
+- [x] Capa fonética con `metaphone()` — va más allá de los 2 errores tipográficos estándar
+- [x] Capa 5 de compound-split + first-char — resuelve combinaciones complejas de errores
+- [x] Lightbox modal con animación y blur — mejora UX más allá del dropdown clásico
+
+---
+
+### ⏳ Pendiente del alcance contratado
+
+- [ ] **Filtros contextuales en página de resultados**
+  La página `?s=query` existe como grilla simple. Falta añadir la barra lateral con filtros por categoría, rango de precio y stock, con actualización AJAX en tiempo real sin recargar la página.
+
+- [ ] **Autocompletado con conteo de categorías sugeridas**
+  Las chips del modal ya filtran por categoría, pero el dropdown no muestra categorías sugeridas con número de productos del tipo `"Tintos (23)"` junto a los resultados de productos.
+
+- [ ] **Backup automático diario del índice Meilisearch → S3**
+  No implementado. Requiere un cron job en el servidor que exporte el dump de Meilisearch y lo suba a un bucket S3.
+
+- [ ] **Configuración en VPC del cliente en AWS**
+  La demo corre en `search.bttr.pe`. Para producción hay que instalar Meilisearch en EC2 dentro de la VPC del cliente, configurar Security Groups (solo accesible desde WordPress, sin exposición a internet) y credenciales en AWS SSM.
+
+- [ ] **Sesión de revisión final con el equipo técnico del cliente**
+  Pendiente de agendar una vez que el plugin esté en producción.
+
+---
+
+### ⚠️ Discrepancias menores a resolver
+
+| Item | Propuesta | Estado actual | Acción |
+|------|-----------|---------------|--------|
+| Debounce autocompletado | 150 ms | 220 ms | Ajustar si el cliente lo requiere |
+| Búsqueda por descripción corta | Incluida | Campo indexado pero desactivado | Activar 1 línea en `ensure_index()` |
+| Filtro sin stock configurable | Toggle visible | Solo filtrable a nivel de API | Añadir toggle en el panel admin |
+
+---
+
+### Orden sugerido para continuar
+
+1. **Filtros en página de resultados** — mayor impacto en conversión
+2. **Conteo de categorías en dropdown** — mejora UX del autocompletado
+3. **Backup automático a S3** — garantía operacional
+4. **Deploy en VPC del cliente** — entrega final en producción
+5. **Sesión de revisión** — cierre del proyecto
+
+---
+
 ## 1. Visión general
 
 El buscador reemplaza el buscador nativo de WooCommerce con **Meilisearch** como motor de búsqueda de texto completo, tolerante a errores tipográficos y con respuesta en tiempo real. Se expone como un plugin de WordPress (`wc-meilisearch`) que:
