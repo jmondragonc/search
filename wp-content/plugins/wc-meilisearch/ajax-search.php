@@ -58,15 +58,17 @@ if ( strlen( $query ) < 2 && empty( $cat ) && empty( $cats_raw ) && ! $with_face
     exit;
 }
 
-// Rate-limit: max 1 request per 100ms per IP.
-$ip_key   = 'wcm_rl_' . md5( $_SERVER['REMOTE_ADDR'] ?? '' );
-$last_hit = get_transient( $ip_key );
-if ( $last_hit && ( microtime( true ) - $last_hit ) < 0.1 ) {
+// Rate-limit: max 10 requests per second per IP.
+// Using a counter (not a timestamp) to allow burst of concurrent requests
+// from the same page (e.g. main search + facets fetched in parallel).
+$ip_key = 'wcm_rl_' . md5( $_SERVER['REMOTE_ADDR'] ?? '' ) . '_' . floor( microtime( true ) );
+$count  = (int) get_transient( $ip_key );
+if ( $count >= 10 ) {
     http_response_code( 429 );
     echo json_encode( [ 'error' => 'Too many requests' ] );
     exit;
 }
-set_transient( $ip_key, microtime( true ), 1 );
+set_transient( $ip_key, $count + 1, 2 );
 
 // ---------------------------------------------------------------------------
 // Build filters
