@@ -428,7 +428,93 @@ Muestra la grilla completa de resultados con paginación. Se activa mediante el 
 
 ---
 
-## 15. Lo que falta / mejoras pendientes
+## 15. Funcionalidades desactivadas — cómo reactivarlas
+
+### Filtro de precio en página de resultados
+
+Estaba implementado pero se desactivó porque la web principal no lo tiene en su panel de filtros. Todo el backend ya lo soporta. Para reactivarlo:
+
+**1. En `assets/search-results.js` — añadir al estado:**
+```js
+const state = {
+  cats:      [],
+  stock:     false,
+  price_min: null,  // ← añadir
+  price_max: null,  // ← añadir
+};
+```
+
+**2. En `buildUrl()` y `buildCatFacetsUrl()` — añadir los params:**
+```js
+if (state.price_min !== null) u.searchParams.set('price_min', state.price_min);
+if (state.price_max !== null) u.searchParams.set('price_max', state.price_max);
+```
+
+**3. En `renderSidebar()` — añadir el bloque HTML del precio** (después del bloque de categorías):
+```js
+'<div class="wcm-filter-block">' +
+  '<h3 class="wcm-filter-title">Precio (S/.)</h3>' +
+  '<div class="wcm-price-inputs">' +
+    '<input type="number" id="wcm-price-min" placeholder="Desde"' +
+      ' value="' + (state.price_min !== null ? state.price_min : '') + '" min="0">' +
+    '<span>—</span>' +
+    '<input type="number" id="wcm-price-max" placeholder="Hasta"' +
+      ' value="' + (state.price_max !== null ? state.price_max : '') + '" min="0">' +
+  '</div>' +
+  '<button id="wcm-price-apply" class="wcm-apply-btn">Aplicar precio</button>' +
+'</div>' +
+```
+
+**4. En `bindSidebarEvents()` — añadir el listener del botón:**
+```js
+const priceApply = document.getElementById('wcm-price-apply');
+if (priceApply) {
+  priceApply.addEventListener('click', () => {
+    const minVal = document.getElementById('wcm-price-min').value;
+    const maxVal = document.getElementById('wcm-price-max').value;
+    state.price_min = minVal !== '' ? parseFloat(minVal) : null;
+    state.price_max = maxVal !== '' ? parseFloat(maxVal) : null;
+    doSearch();
+  });
+  ['wcm-price-min', 'wcm-price-max'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') priceApply.click(); });
+  });
+}
+```
+
+**5. En `renderActiveChips()` — añadir el chip del precio:**
+```js
+if (state.price_min !== null || state.price_max !== null) {
+  const label = 'S/. ' + (state.price_min || 0) + ' – ' + (state.price_max !== null ? state.price_max : '∞');
+  chips.push('<span class="wcm-active-chip" data-type="price">' + label + ' ×</span>');
+}
+```
+Y en el listener de chips: `if (type === 'price') { state.price_min = null; state.price_max = null; }`
+
+**6. En `templates/search-results.php` — añadir CSS** (dentro del bloque `<style>`):
+```css
+.wcm-price-inputs { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.wcm-price-inputs input[type="number"] {
+  width: 0; flex: 1; padding: 7px 8px; border: 1px solid #ddd;
+  border-radius: 6px; font-size: 13px; color: #333; -moz-appearance: textfield;
+}
+.wcm-price-inputs input[type="number"]::-webkit-outer-spin-button,
+.wcm-price-inputs input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+.wcm-price-inputs span { color: #aaa; font-size: 13px; flex-shrink: 0; }
+.wcm-apply-btn {
+  display: block; width: 100%; padding: 7px 0; background: #8b0000; color: #fff;
+  border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background .15s;
+}
+.wcm-apply-btn:hover { background: #6b0000; }
+```
+
+> El endpoint `ajax-search.php` ya acepta `price_min` y `price_max` — no requiere cambios en PHP.
+
+---
+
+## 16. Lo que falta / mejoras pendientes
 
 - [ ] **Búsqueda por varietal/maridaje en lenguaje natural**: "vino para carne" → no busca por contenido de descripción todavía (campo `description` desactivado en `searchableAttributes` por performance).
 - [ ] **Sinónimos en Meilisearch**: para marcas con múltiples escrituras habituales que metaphone no captura bien (ej. marcas en idiomas no latinos).
