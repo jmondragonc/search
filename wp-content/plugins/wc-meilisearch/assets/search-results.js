@@ -32,10 +32,8 @@
 
   // ── Filter state ────────────────────────────────────────────────────────────
   const state = {
-    cats:      [],    // string[]
-    price_min: null,  // number | null
-    price_max: null,  // number | null
-    stock:     false, // bool – only in-stock
+    cats:  [],    // string[]
+    stock: false, // bool – only in-stock
   };
 
   // ── Fetch ────────────────────────────────────────────────────────────────────
@@ -46,10 +44,8 @@
     u.searchParams.set('q',      query);
     u.searchParams.set('limit',  '96');
     u.searchParams.set('facets', '1');
-    if (state.cats.length)        u.searchParams.set('cats',      state.cats.join(','));
-    if (state.stock)              u.searchParams.set('stock',     'true');
-    if (state.price_min !== null) u.searchParams.set('price_min', state.price_min);
-    if (state.price_max !== null) u.searchParams.set('price_max', state.price_max);
+    if (state.cats.length) u.searchParams.set('cats',  state.cats.join(','));
+    if (state.stock)       u.searchParams.set('stock', 'true');
     return u.toString();
   }
 
@@ -61,9 +57,7 @@
     u.searchParams.set('q',      query);
     u.searchParams.set('limit',  '1');   // only need facets, not results
     u.searchParams.set('facets', '1');
-    if (state.stock)              u.searchParams.set('stock',     'true');
-    if (state.price_min !== null) u.searchParams.set('price_min', state.price_min);
-    if (state.price_max !== null) u.searchParams.set('price_max', state.price_max);
+    if (state.stock) u.searchParams.set('stock', 'true');
     // no cats → returns all categories available for this query
     return u.toString();
   }
@@ -142,11 +136,6 @@
     const catFacets   = facets.categories || {};
     const stockFacets = facets.in_stock   || {};
 
-    // Price range from current results
-    const prices   = results.map(r => r.price).filter(p => p > 0);
-    const minPrice = prices.length ? Math.floor(Math.min(...prices)) : 0;
-    const maxPrice = prices.length ? Math.ceil(Math.max(...prices))  : 1000;
-
     // Sort categories by count, skip very broad/internal ones
     const SKIP_CATS = new Set(['Vinos.', 'Vinos y Espumantes', 'Al por mayor', 'Wine Collections']);
     const sortedCats = Object.entries(catFacets)
@@ -185,19 +174,6 @@
         '</div>'
       ) : '') +
 
-      // Price
-      '<div class="wcm-filter-block">' +
-        '<h3 class="wcm-filter-title">Precio (S/.)</h3>' +
-        '<div class="wcm-price-inputs">' +
-          '<input type="number" id="wcm-price-min" placeholder="Desde"' +
-            ' value="' + (state.price_min !== null ? state.price_min : '') + '" min="0">' +
-          '<span>—</span>' +
-          '<input type="number" id="wcm-price-max" placeholder="Hasta"' +
-            ' value="' + (state.price_max !== null ? state.price_max : '') + '" min="0">' +
-        '</div>' +
-        '<button id="wcm-price-apply" class="wcm-apply-btn">Aplicar precio</button>' +
-      '</div>' +
-
       // Clear all
       (hasFilters ? '<button id="wcm-clear-all" class="wcm-clear-btn">Limpiar todos los filtros</button>' : '');
 
@@ -227,32 +203,12 @@
       });
     });
 
-    // Price apply
-    const priceApply = document.getElementById('wcm-price-apply');
-    if (priceApply) {
-      priceApply.addEventListener('click', () => {
-        const minVal = document.getElementById('wcm-price-min').value;
-        const maxVal = document.getElementById('wcm-price-max').value;
-        state.price_min = minVal !== '' ? parseFloat(minVal) : null;
-        state.price_max = maxVal !== '' ? parseFloat(maxVal) : null;
-        doSearch();
-      });
-    }
-
-    // Price inputs: apply on Enter
-    ['wcm-price-min', 'wcm-price-max'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') priceApply && priceApply.click(); });
-    });
-
     // Clear all
     const clearBtn = document.getElementById('wcm-clear-all');
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
-        state.cats      = [];
-        state.price_min = null;
-        state.price_max = null;
-        state.stock     = false;
+        state.cats  = [];
+        state.stock = false;
         doSearch();
       });
     }
@@ -269,18 +225,13 @@
     if (state.stock) {
       chips.push('<span class="wcm-active-chip" data-type="stock">Con stock ×</span>');
     }
-    if (state.price_min !== null || state.price_max !== null) {
-      const label = 'S/. ' + (state.price_min || 0) + ' – ' + (state.price_max !== null ? state.price_max : '∞');
-      chips.push('<span class="wcm-active-chip" data-type="price">' + label + ' ×</span>');
-    }
 
     chipsEl.innerHTML = chips.join('');
     chipsEl.querySelectorAll('.wcm-active-chip').forEach(chip => {
       chip.addEventListener('click', function () {
         const type = this.dataset.type;
-        if (type === 'cat')   state.cats      = state.cats.filter(c => c !== this.dataset.val);
-        if (type === 'stock') state.stock     = false;
-        if (type === 'price') { state.price_min = null; state.price_max = null; }
+        if (type === 'cat')   state.cats  = state.cats.filter(c => c !== this.dataset.val);
+        if (type === 'stock') state.stock = false;
         doSearch();
       });
     });

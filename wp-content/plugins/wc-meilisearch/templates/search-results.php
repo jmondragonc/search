@@ -80,24 +80,6 @@ $query = get_search_query();
   }
   .wcm-filter-toggle-row input[type="checkbox"] { accent-color: #8b0000; cursor: pointer; }
 
-  /* Price range */
-  .wcm-price-inputs {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
-  }
-  .wcm-price-inputs input[type="number"] {
-    width: 0; flex: 1; padding: 7px 8px; border: 1px solid #ddd;
-    border-radius: 6px; font-size: 13px; color: #333;
-    -moz-appearance: textfield;
-  }
-  .wcm-price-inputs input[type="number"]::-webkit-outer-spin-button,
-  .wcm-price-inputs input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
-  .wcm-price-inputs span { color: #aaa; font-size: 13px; flex-shrink: 0; }
-  .wcm-apply-btn {
-    display: block; width: 100%; padding: 7px 0; background: #8b0000; color: #fff;
-    border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
-    cursor: pointer; transition: background .15s;
-  }
-  .wcm-apply-btn:hover { background: #6b0000; }
   .wcm-clear-btn {
     display: block; width: 100%; padding: 7px 0; background: transparent;
     color: #888; border: 1px solid #ddd; border-radius: 6px;
