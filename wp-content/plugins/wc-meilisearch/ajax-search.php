@@ -143,7 +143,36 @@ if ( $with_facets ) {
     $options['facets'] = [ 'categories', 'attr_pais', 'attr_region', 'attr_tipo', 'attr_varietal', 'attr_marca', 'attr_volumen', 'in_stock' ];
 }
 
-$result = \WCMeilisearch\MeilisearchClient::instance()->search( $query, $options );
+$client = \WCMeilisearch\MeilisearchClient::instance();
+$result = $client->search( $query, $options );
+
+// ---------------------------------------------------------------------------
+// Facets scoped to actual result IDs
+// ---------------------------------------------------------------------------
+// Meilisearch computes facet distribution for ALL matching documents, not just
+// the ones returned by `limit`. Re-query with the returned IDs as a filter so
+// the counts match exactly the products shown.
+$facets = [];
+if ( $with_facets ) {
+    $result_ids = array_values( array_filter( array_map(
+        fn( $r ) => isset( $r['id'] ) ? (int) $r['id'] : 0,
+        $result['results'] ?? []
+    ) ) );
+
+    if ( ! empty( $result_ids ) ) {
+        $id_filter    = 'id IN [' . implode( ',', $result_ids ) . ']';
+        $facet_filter = ! empty( $filter_parts )
+            ? implode( ' AND ', $filter_parts ) . ' AND ' . $id_filter
+            : $id_filter;
+
+        $facet_result = $client->search( $query, [
+            'limit'   => 0,
+            'filter'  => $facet_filter,
+            'facets'  => [ 'categories', 'attr_pais', 'attr_region', 'attr_tipo', 'attr_varietal', 'attr_marca', 'attr_volumen', 'in_stock' ],
+        ] );
+        $facets = $facet_result['facets'] ?? [];
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Response
@@ -158,8 +187,8 @@ $response = [
     'cached'           => $result['cached'],
 ];
 
-if ( $with_facets && ! empty( $result['facets'] ) ) {
-    $response['facets'] = $result['facets'];
+if ( $with_facets && ! empty( $facets ) ) {
+    $response['facets'] = $facets;
 }
 
 echo json_encode( $response );
