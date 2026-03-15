@@ -523,17 +523,6 @@ function wcm_render_header_searchbar(): void {
         .wcm-tag:hover {
             border-color: #8b1c31;
         }
-        .wcm-tag::before {
-            content: "";
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            background: url('<?php echo esc_url( WCM_PLUGIN_URL . '1f50d.svg' ); ?>') no-repeat center;
-            background-size: contain;
-            margin-right: 4px;
-            vertical-align: middle;
-            opacity: 0.6;
-        }
 
         /* Results View */
         .wcm-results-header {
