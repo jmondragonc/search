@@ -60,6 +60,17 @@ add_action( 'plugins_loaded', function () {
     add_action( 'wp_enqueue_scripts', 'wcm_enqueue_frontend' );
     add_action( 'wp_body_open',       'wcm_render_header_searchbar' );
     add_filter( 'template_include',   'wcm_search_template' );
+
+    // Store active search term in a cookie so S&F Pro filter navigations
+    // (which drop ?s= from the URL) can still recover the search context.
+    add_action( 'template_redirect', 'wcm_manage_search_cookie' );
+
+    // Inject Meilisearch IDs into S&F Pro filter queries via pre_get_posts
+    // (priority 5, before S&F Pro at 10) so filter counts also reflect search.
+    add_action( 'pre_get_posts', 'wcm_sfp_restrict_by_meilisearch', 5 );
+
+    // Phonetic fallback for standard ?s= searches that MySQL can't handle.
+    add_filter( 'posts_results', 'wcm_meilisearch_fallback', 10, 2 );
 } );
 
 /**
@@ -713,6 +724,205 @@ function wcm_search_template( string $template ): string {
         }
     }
     return $template;
+}
+
+// ---------------------------------------------------------------------------
+// S&F Pro search-context preservation
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the active Meilisearch search term when in an S&F Pro filter context.
+ * Reads from: (1) wcm_search cookie, (2) HTTP_REFERER ?s= param.
+ */
+function wcm_get_sfp_search_term(): string {
+    if ( ! empty( $_COOKIE['wcm_search'] ) ) {
+        return sanitize_text_field( $_COOKIE['wcm_search'] );
+    }
+    if ( ! empty( $_SERVER['HTTP_REFERER'] ) ) {
+        $referer = wp_http_validate_url( sanitize_text_field( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) );
+        if ( $referer ) {
+            $ref_parts = wp_parse_url( $referer );
+            if ( ! empty( $ref_parts['query'] ) ) {
+                parse_str( $ref_parts['query'], $ref_params );
+                if ( ! empty( $ref_params['s'] ) && strlen( $ref_params['s'] ) >= 2 ) {
+                    return sanitize_text_field( $ref_params['s'] );
+                }
+            }
+        }
+    }
+    return '';
+}
+
+/**
+ * Calls Meilisearch and returns matching product post IDs.
+ * Results are cached per request to avoid duplicate API calls.
+ *
+ * @return int[]
+ */
+function wcm_get_cached_meilisearch_ids( string $s ): array {
+    static $cache = [];
+    if ( isset( $cache[ $s ] ) ) {
+        return $cache[ $s ];
+    }
+    try {
+        $client      = \WCMeilisearch\MeilisearchClient::instance();
+        $result      = $client->search( $s, [ 'limit' => 200 ] );
+        $ids         = array_column( $result['results'] ?? [], 'id' );
+        $cache[ $s ] = array_values( array_filter( array_map( 'intval', $ids ) ) );
+    } catch ( \Throwable $e ) {
+        error_log( '[WCMeilisearch] search error: ' . $e->getMessage() );
+        $cache[ $s ] = [];
+    }
+    return $cache[ $s ];
+}
+
+/**
+ * Sets / clears the wcm_search cookie.
+ *
+ * - On a product search page (?s=…&post_type=product): stores the term (10 min).
+ * - On any other page that is NOT an S&F Pro filter page: clears the cookie.
+ */
+function wcm_manage_search_cookie(): void {
+    if ( headers_sent() ) {
+        return;
+    }
+
+    $is_sfp = false;
+    foreach ( array_keys( $_GET ) as $key ) {
+        if ( str_starts_with( (string) $key, '_sft_' ) || str_starts_with( (string) $key, '_sfm_' ) ) {
+            $is_sfp = true;
+            break;
+        }
+    }
+
+    if ( is_search() && isset( $_GET['s'], $_GET['post_type'] )
+         && 'product' === sanitize_key( $_GET['post_type'] ) ) {
+        $s = sanitize_text_field( wp_unslash( $_GET['s'] ) );
+        if ( strlen( $s ) >= 2 ) {
+            setcookie( 'wcm_search', $s, time() + 600, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+        }
+    } elseif ( ! $is_sfp ) {
+        setcookie( 'wcm_search', '', time() - 3600, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+    }
+}
+
+/**
+ * Injects Meilisearch IDs into every WP_Query on S&F Pro filter pages
+ * (pre_get_posts priority 5, before S&F Pro at 10).
+ *
+ * Affects ALL product queries — including S&F Pro count sub-queries — so
+ * the filter option counts reflect the active search context.
+ */
+function wcm_sfp_restrict_by_meilisearch( WP_Query $query ): void {
+    if ( is_admin() ) {
+        return;
+    }
+
+    $is_sfp = false;
+    foreach ( array_keys( $_GET ) as $key ) {
+        if ( str_starts_with( (string) $key, '_sft_' ) || str_starts_with( (string) $key, '_sfm_' ) ) {
+            $is_sfp = true;
+            break;
+        }
+    }
+    if ( ! $is_sfp ) {
+        return;
+    }
+
+    $s = wcm_get_sfp_search_term();
+    if ( strlen( $s ) < 2 ) {
+        return;
+    }
+
+    $pt = $query->get( 'post_type' );
+    if ( ! empty( $pt ) && $pt !== 'product' && ! in_array( 'product', (array) $pt, true ) ) {
+        return;
+    }
+
+    $ids = wcm_get_cached_meilisearch_ids( $s );
+    if ( empty( $ids ) ) {
+        return;
+    }
+
+    $existing = $query->get( 'post__in' );
+    if ( ! empty( $existing ) ) {
+        $merged = array_values( array_intersect( (array) $existing, $ids ) );
+        $query->set( 'post__in', $merged ?: [ -1 ] );
+    } else {
+        $query->set( 'post__in', $ids );
+    }
+}
+
+/**
+ * Phonetic fallback for standard ?s= searches (MySQL returns 0 results).
+ * S&F Pro filter pages are fully handled by wcm_sfp_restrict_by_meilisearch().
+ */
+function wcm_meilisearch_fallback( array $posts, WP_Query $query ): array {
+    if ( is_admin() || ! $query->is_main_query() ) {
+        return $posts;
+    }
+
+    $s       = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+    $sfp_ctx = false;
+
+    if ( strlen( $s ) < 2 ) {
+        foreach ( array_keys( $_GET ) as $key ) {
+            if ( str_starts_with( (string) $key, '_sft_' ) || str_starts_with( (string) $key, '_sfm_' ) ) {
+                $sfp_ctx = true;
+                break;
+            }
+        }
+        if ( $sfp_ctx ) {
+            $s = wcm_get_sfp_search_term();
+        }
+    }
+
+    if ( strlen( $s ) < 2 ) {
+        return $posts;
+    }
+
+    // S&F Pro: pre_get_posts already injected post__in → MySQL result is correct.
+    if ( $sfp_ctx ) {
+        return $posts;
+    }
+
+    // Standard fallback: only when MySQL returned nothing.
+    if ( ! empty( $posts ) ) {
+        return $posts;
+    }
+
+    $post_type = isset( $_GET['post_type'] ) ? sanitize_key( $_GET['post_type'] ) : $query->get( 'post_type' );
+    if ( 'product' !== $post_type && ! in_array( 'product', (array) $post_type, true ) ) {
+        return $posts;
+    }
+
+    try {
+        $ids = wcm_get_cached_meilisearch_ids( $s );
+        if ( empty( $ids ) ) {
+            return $posts;
+        }
+
+        $alt = new WP_Query( [
+            'post__in'            => $ids,
+            'post_type'           => 'product',
+            'post_status'         => 'publish',
+            'posts_per_page'      => count( $ids ),
+            'orderby'             => 'post__in',
+            'ignore_sticky_posts' => true,
+            'no_found_rows'       => false,
+        ] );
+
+        if ( ! empty( $alt->posts ) ) {
+            $query->found_posts   = $alt->found_posts;
+            $query->max_num_pages = $alt->max_num_pages;
+            $query->post_count    = count( $alt->posts );
+            return $alt->posts;
+        }
+    } catch ( \Throwable $e ) {
+        error_log( '[WCMeilisearch] fallback error: ' . $e->getMessage() );
+    }
+
+    return $posts;
 }
 
 // ---------------------------------------------------------------------------
