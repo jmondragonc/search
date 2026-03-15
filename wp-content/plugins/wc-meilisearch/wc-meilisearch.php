@@ -854,8 +854,13 @@ function wcm_sfp_restrict_by_meilisearch( WP_Query $query ): void {
 }
 
 /**
- * Phonetic fallback for standard ?s= searches (MySQL returns 0 results).
- * S&F Pro filter pages are fully handled by wcm_sfp_restrict_by_meilisearch().
+ * Meilisearch fallback via posts_results.
+ *
+ * Two modes:
+ * 1. S&F Pro filter context: user applied a filter after a Meilisearch search.
+ *    Detected via wcm_search cookie + _sft_*/_sfm_* params. Always activates
+ *    and returns the intersection of Meilisearch hits and S&F Pro conditions.
+ * 2. Standard phonetic fallback: MySQL returned 0 results for ?s=term.
  */
 function wcm_meilisearch_fallback( array $posts, WP_Query $query ): array {
     if ( is_admin() || ! $query->is_main_query() ) {
@@ -881,13 +886,9 @@ function wcm_meilisearch_fallback( array $posts, WP_Query $query ): array {
         return $posts;
     }
 
-    // S&F Pro: pre_get_posts already injected post__in → MySQL result is correct.
-    if ( $sfp_ctx ) {
-        return $posts;
-    }
-
-    // Standard fallback: only when MySQL returned nothing.
-    if ( ! empty( $posts ) ) {
+    // Standard mode: only activate when MySQL returned nothing.
+    // S&F Pro mode: always activate to override MySQL's unfiltered shop results.
+    if ( ! $sfp_ctx && ! empty( $posts ) ) {
         return $posts;
     }
 
@@ -902,6 +903,10 @@ function wcm_meilisearch_fallback( array $posts, WP_Query $query ): array {
             return $posts;
         }
 
+        // Carry over S&F Pro tax/meta conditions so active filters are respected.
+        $tax_query  = $query->get( 'tax_query' )  ?: [];
+        $meta_query = $query->get( 'meta_query' ) ?: [];
+
         $alt = new WP_Query( [
             'post__in'            => $ids,
             'post_type'           => 'product',
@@ -910,6 +915,8 @@ function wcm_meilisearch_fallback( array $posts, WP_Query $query ): array {
             'orderby'             => 'post__in',
             'ignore_sticky_posts' => true,
             'no_found_rows'       => false,
+            'tax_query'           => $tax_query,
+            'meta_query'          => $meta_query,
         ] );
 
         if ( ! empty( $alt->posts ) ) {
